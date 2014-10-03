@@ -1,12 +1,12 @@
-#include "patricia.h"
+#include "patricia.hpp"
 #include <erl_nif.h>
 #include <vector>
 #include <cstdint>
 
 typedef uint32_t Ipv4Ip;
-typedef PatriciaPair<Ipv4Ip, int> Ipv4List;
+typedef PatriciaPair<Ipv4Ip, uint64_t> Ipv4List;
 typedef PatriciaKey<Ipv4Ip> Ipv4Mask;
-typedef Patricia<Ipv4Ip, int> Ipv4Index;
+typedef Patricia<Ipv4Ip, uint64_t> Ipv4Index;
 
 extern "C" {
 
@@ -71,12 +71,18 @@ build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         int ip_list_tuple_arity;
         enif_get_tuple(env, current, &ip_list_tuple_arity, &ip_list_tuple);
 
-        int ip_list_id;
+        uint32_t ip_list_space_id;
+        uint32_t ip_list_id;
+        uint64_t value;
         ERL_NIF_TERM ip_list;
         unsigned ip_list_length;
 
-        enif_get_int(env, ip_list_tuple[0], &ip_list_id);
-        ip_list = ip_list_tuple[1];
+        enif_get_uint(env, ip_list_tuple[0], &ip_list_space_id);
+        enif_get_uint(env, ip_list_tuple[1], &ip_list_id);
+
+        value = (static_cast<uint64_t>(ip_list_space_id) << 32) + ip_list_id;
+
+        ip_list = ip_list_tuple[2];
         enif_get_list_length(env, ip_list, &ip_list_length);
 
         std::vector<Ipv4Mask> ip_list_vector;
@@ -104,7 +110,7 @@ build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
             ip_list_vector.push_back(ipv4_mask);
         }
 
-        Ipv4List ipv4_list(ip_list_vector, ip_list_id);
+        Ipv4List ipv4_list(ip_list_vector, value);
 
         ip_lists.push_back(ipv4_list);
     }
@@ -124,7 +130,6 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     void **wrapper;
     Ipv4Index *index;
     uint32_t ip;
-    std::vector<int> results;
 
     enif_get_resource(env, argv[0], ip_index_type, &pointer);
     enif_get_uint(env, argv[1], &ip);
@@ -133,16 +138,18 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     index = static_cast<Ipv4Index*>(*wrapper);
 
-    index->lookup(ip, results);
+    std::vector<uint64_t> *results = index->lookup(ip);
 
-    unsigned length = results.size();
-
-    cout << length << endl;
+    unsigned length = results->size();
 
     ERL_NIF_TERM *results_array = static_cast<ERL_NIF_TERM*>(enif_alloc(sizeof(ERL_NIF_TERM) * length));
 
-    for (unsigned i = 0; i < length; i++)
-        results_array[i] = enif_make_int(env, results[i]);
+    for (unsigned i = 0; i < length; i++) {
+        uint64_t value = results->at(i);
+        uint32_t ip_list_space_id = static_cast<uint32_t>(value >> 32);
+        uint32_t ip_list_id = static_cast<uint32_t>(value & 0x00000000ffffffffll);
+        results_array[i] = enif_make_tuple2(env, enif_make_uint(env, ip_list_space_id), enif_make_uint(env, ip_list_id));
+    }
 
     ERL_NIF_TERM retval = enif_make_list_from_array(env, results_array, length);
 

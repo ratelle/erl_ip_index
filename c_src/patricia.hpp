@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <vector>
 #include <iostream>
+#include <set>
 using namespace std;
 
 template <typename KeyType>
@@ -89,16 +90,10 @@ class PatriciaNode
 public:
     PatriciaNode() {}
 
-    PatriciaNode(ValueType value)
+    PatriciaNode(std::set<ValueType>& parent_set, ValueType& value)
     {
-        values.push_back(value);
-    }
-
-    PatriciaNode(ValueType value, PatriciaKey<KeyType> child_key, PatriciaNode *child)
-    {
-        values.push_back(value);
-        keys.push_back(child_key);
-        children.push_vack(child);
+        creation_set = parent_set;
+        creation_set.insert(value);
     }
 
     ~PatriciaNode()
@@ -115,10 +110,6 @@ public:
     {
         int min = 0;
         int max = keys.size()-1;
-
-        /* cout << "IP : " << new_key.value() << endl; */
-        /* cout << "Mask : " << new_key.offset() << endl; */
-        /* cout << "Max : " << max << endl; */
 
         while (max >= min)
         {
@@ -141,22 +132,31 @@ public:
                 min = mid + 1;
         }
 
-        PatriciaNode<KeyType,ValueType> *new_node = new PatriciaNode<KeyType,ValueType>(new_value);
-        keys.insert(keys.begin()+min, new_key);
-        children.insert(children.begin()+min, new_node);
+        PatriciaNode<KeyType, ValueType> *new_node = new PatriciaNode<KeyType, ValueType>(creation_set, new_value);
+        keys.insert(keys.begin() + min, new_key);
+        children.insert(children.begin() + min, new_node);
     }
 
     void
     add(ValueType new_value)
     {
-        values.push_back(new_value);
+        creation_set.insert(new_value);
     }
 
     void
-    lookup(KeyType key, std::vector<ValueType>& results)
+    finalize()
     {
+        values.reserve(creation_set.size());
+        values.insert(values.begin(), creation_set.begin(), creation_set.end());
+        creation_set.clear();
+        for (auto child : children)
+            child->finalize();
+    }
 
-        results.insert(results.end(), values.begin(), values.end());
+
+    std::vector<ValueType> *
+    lookup(KeyType key)
+    {
 
         int min = 0;
         int max = keys.size()-1;
@@ -167,18 +167,19 @@ public:
             PatriciaKey<KeyType> current_key = keys[mid];
             if (current_key.applies_to(key))
             {
-                children[mid]->lookup(key, results);
-                return;
+                return children[mid]->lookup(key);
             }
             else if(key < current_key.value())
                 max = mid - 1;
             else
                 min = mid + 1;
         }
+
+        return &values;
     }
 
-
 private:
+    std::set<ValueType> creation_set;
     std::vector<ValueType> values;
     std::vector<PatriciaKey<KeyType>> keys;
     std::vector<PatriciaNode *> children;
@@ -191,7 +192,6 @@ public:
     Patricia(std::vector<PatriciaPair<KeyType, ValueType>>& pairs)
     {
         unsigned length = pairs.size();
-        n_values = length;
         for (int offset = sizeof(KeyType) << 3; offset >= 0; offset--)
         {
             for (unsigned i = 0; i < length; i++)
@@ -202,23 +202,23 @@ public:
                 {
                     if (pairs[i].get_key(j).offset() == offset)
                     {
+                        //cout << offset << endl;
                         PatriciaKey<KeyType> current_key = pairs[i].get_key(j);
                         root.insert(current_key, value);
                     }
                 }
             }
         }
+        root.finalize();
     }
 
-    void
-    lookup (KeyType key, std::vector<ValueType>& results)
+    std::vector<ValueType> *
+    lookup (KeyType key)
     {
-        results.reserve(n_values);
-        root.lookup(key, results);
+        return root.lookup(key);
     }
 
 private:
-    unsigned n_values;
     PatriciaNode<KeyType, ValueType> root;
 
 };
