@@ -1,6 +1,6 @@
 {application, erl_ip_index, [
   {description, "Erlang ip index nif"},
-  {vsn, "1.0.0"},
+  {vsn, "1.0.1"},
   {applications, [
     kernel,
     stdlib
