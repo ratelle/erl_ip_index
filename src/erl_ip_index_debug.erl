@@ -90,7 +90,8 @@ lookups(NLookup, OldIndex, NewIndex) ->
     end.
 
 generate_basic_lists(NLists, NMasks) ->
-    [{Id, generate_basic_masks(NMasks)} || Id <- lists:seq(1, NLists)].
+    [{0, Id, generate_basic_masks(NMasks)} || Id <- lists:seq(1, NLists)] ++
+        [{1, Id, generate_basic_masks(NMasks)} || Id <- lists:seq(1, NLists)].
 
 generate_basic_masks(NMasks) ->
     lists:sort([generate_basic_mask() || _N <- lists:seq(1, NMasks)]).
@@ -106,8 +107,8 @@ convert(OldTid, NewTid, Key) ->
     ets:insert(NewTid, {Key, ets:lookup_element(OldTid, Key, 2)}),
     convert(OldTid, NewTid, ets:next(OldTid, Key)).
 
-add_list(Tid, {Id, IpMasks}) ->
-    lists:foreach(fun (Mask) -> add_mask(Tid, Id, Mask) end, IpMasks).
+add_list(Tid, {Space, Id, IpMasks}) ->
+    lists:foreach(fun (Mask) -> add_mask(Tid, {Space, Id}, Mask) end, IpMasks).
 
 add_mask(Tid, Id, {A, _, _, _, 8}) ->
     ets:insert(Tid, {{A}, Id});

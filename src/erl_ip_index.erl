@@ -74,6 +74,8 @@ split_ip(Ip) when is_binary(Ip) ->
 split_ip(Ip) when is_list(Ip) ->
     split_ip(list_to_binary(Ip)).
 
+parse_ip_mask({A, B, C, D, Mask}) ->
+    {A, B, C, D, Mask};
 parse_ip_mask(IpMask) when is_binary(IpMask) ->
     [IpBin, Mask] = binary:split(IpMask, <<"/">>),
     {A, B, C, D} = split_ip(IpBin),
