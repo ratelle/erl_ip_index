@@ -5,7 +5,8 @@
     build_index/1,
     lookup_ip/2,
     parse_ip/1,
-    parse_ip_mask/1
+    parse_ip_mask/1,
+    mask_to_string/1
 ]).
 
 % Potential optimization : Pre sort by mask in each ip list which allows us to keep an index for each list
@@ -60,9 +61,11 @@ check_ip_list({IdSpace, Id, List}) ->
     {IdSpace, Id, [Mask || Mask <- List, check_ip_mask(IdSpace, Id, Mask)]}.
 
 check_ip_mask(IdSpace, Id, {A, B, C, D, Mask}) ->
+    ValidIdSpace = IdSpace >= 0 andalso IdSpace =< 16#ffffffff,
+    ValidId = Id >= 0 andalso Id =< 16#ffffffff,
     ValidAddress = A >= 0 andalso A =< 255 andalso B >= 0 andalso B =< 255 andalso C >= 0 andalso C =< 255 andalso D >= 0 andalso D =< 255,
     ValidMask = Mask >= ?MINIMAL_MASK andalso Mask =< 32,
-    case ValidAddress andalso ValidMask of
+    case ValidIdSpace andalso ValidId andalso ValidAddress andalso ValidMask of
         true -> true;
         false ->
             error_logger:error_msg("Ip index invalid mask in list ~p/~p : ~p.~p.~p.~p/~p", [IdSpace, Id, A, B, C, D, Mask]),
@@ -95,6 +98,12 @@ parse_ip(Ip) when is_binary(Ip) ->
     parse_ip(split_ip(Ip));
 parse_ip(Ip) when is_list(Ip) ->
     parse_ip(list_to_binary(Ip)).
+
+mask_to_string(Mask) ->
+    Parsed = parse_ip_mask(Mask),
+    {Number, _} = convert_ip_mask(Parsed),
+    Rep = integer_to_list(Number, 2),
+    [$0 || _ <- lists:seq(1,32 - length(Rep))] ++ Rep.
 
 lookup_ip(Index, Ip) ->
     lookup_ip_nif(Index, parse_ip(Ip)).
