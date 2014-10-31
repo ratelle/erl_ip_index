@@ -45,7 +45,7 @@ build_index(IpLists) ->
     build_index_nif(prepare_ip_lists(IpLists)).
 
 async_build_index(IpLists) ->
-    {Ref, Tid} = async_start_build_index_nif(IpLists),
+    {Ref, Tid} = async_start_build_index_nif(prepare_ip_lists(IpLists)),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),

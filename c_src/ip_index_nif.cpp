@@ -146,7 +146,7 @@ async_build_index_thread(void *args)
     enif_send(NULL, &(ie->pid), ie->env, enif_make_tuple2(ie->env, ie->ref, result));
 
     enif_free_env(ie->env);
-    free(ie);
+    enif_free(ie);
     return NULL;
 }
 
