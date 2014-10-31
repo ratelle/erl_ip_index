@@ -3,6 +3,7 @@
 -export([
     init/0,
     build_index/1,
+    async_build_index/1,
     lookup_ip/2,
     parse_ip/1,
     parse_ip_mask/1,
@@ -34,12 +35,25 @@ priv_dir() ->
         Dir -> Dir
     end.
 
-build_index(IpLists) ->
+prepare_ip_lists(IpLists) ->
     ParsedIpLists = [{IdSpace, Id, lists:map(fun parse_ip_mask/1, Ips)} || {IdSpace, Id, Ips} <- IpLists],
     AdjustedIpLists = [{IdSpace, Id, adjust_ip_list(IpList)} || {IdSpace, Id, IpList} <- ParsedIpLists],
     CheckedIpLists = lists:map(fun check_ip_list/1, AdjustedIpLists),
-    ConvertedIpLists = [{IdSpace, Id, lists:map(fun convert_ip_mask/1, IpList)} || {IdSpace, Id, IpList} <- CheckedIpLists],
-    build_index_nif(ConvertedIpLists).
+    [{IdSpace, Id, lists:map(fun convert_ip_mask/1, IpList)} || {IdSpace, Id, IpList} <- CheckedIpLists].
+
+build_index(IpLists) ->
+    build_index_nif(prepare_ip_lists(IpLists)).
+
+async_build_index(IpLists) ->
+    {Ref, Tid} = async_start_build_index_nif(IpLists),
+    receive
+        {Ref, undefined} ->
+            async_finish_build_index_nif(Tid),
+            error(badarg);
+        {Ref, Result} ->
+            async_finish_build_index_nif(Tid),
+            Result
+    end.
 
 adjust_ip_list(IpList) ->
     SortedIpList = lists:sort(IpList),
@@ -112,4 +126,10 @@ build_index_nif(_IpLists) ->
     {error, ip_index_nif_not_loaded}.
 
 lookup_ip_nif(_Index, _Ip) ->
+    {error, lookup_ip_nif_not_loaded}.
+
+async_start_build_index_nif(_Lists) ->
+    {error, lookup_ip_nif_not_loaded}.
+
+async_finish_build_index_nif(_Tid) ->
     {error, lookup_ip_nif_not_loaded}.
