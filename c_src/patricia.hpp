@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 #include <iostream>
@@ -79,7 +80,7 @@ public:
     }
 
 private:
-    std::vector<PatriciaKey<KeyType>> keys_;
+    std::vector<PatriciaKey<KeyType> > keys_;
     ValueType value_;
 
 };
@@ -87,6 +88,9 @@ private:
 template <typename KeyType, typename ValueType>
 class PatriciaNode
 {
+    typedef std::pair<PatriciaKey<KeyType>, PatriciaNode *> Child;
+    typedef std::pair<PatriciaKey<KeyType>, ValueType> InsertedChild;
+
 public:
     PatriciaNode() {}
 
@@ -101,7 +105,7 @@ public:
         unsigned size = children.size();
         for (unsigned i = 0; i < size; i++)
         {
-            delete children[i];
+            delete children[i].second;
         }
     }
 
@@ -109,20 +113,20 @@ public:
     insert(PatriciaKey<KeyType>& new_key, ValueType& new_value)
     {
         int min = 0;
-        int max = keys.size()-1;
+        int max = children.size()-1;
 
         while (max >= min)
         {
             int mid = min + ((max - min) / 2);
-            PatriciaKey<KeyType> current_key = keys[mid];
+            PatriciaKey<KeyType> current_key = children[mid].first;
             if (current_key == new_key)
             {
-                children[mid]->add(new_value);
+                children[mid].second->add(new_value);
                 return;
             }
             else if (current_key.applies_to(new_key))
             {
-                children[mid]->insert(new_key, new_value);
+                children[mid].second->insert(new_key, new_value);
                 return;
             }
             // new_key should never apply to current_key if insertion order is respected
@@ -132,15 +136,37 @@ public:
                 min = mid + 1;
         }
 
-        PatriciaNode<KeyType, ValueType> *new_node = new PatriciaNode<KeyType, ValueType>(creation_set, new_value);
-        keys.insert(keys.begin() + min, new_key);
-        children.insert(children.begin() + min, new_node);
+        inserted_children.push_back(InsertedChild(new_key, new_value));
     }
 
     void
     add(ValueType new_value)
     {
         creation_set.insert(new_value);
+    }
+
+    void finalize_offset()
+    {
+        for (auto child : children)
+             child.second->finalize_offset();
+
+        if (inserted_children.size() > 0) {
+            PatriciaKey<KeyType> current_key = inserted_children[0].first;
+            PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[0].second);
+            for (unsigned i = 1; i < inserted_children.size(); i++) {
+                if (inserted_children[i].first == current_key)
+                    current_node->add(inserted_children[i].second);
+                else {
+                    children.push_back(Child(current_key, current_node));
+                    current_key =  inserted_children[i].first;
+                    current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[i].second);
+                }
+            }
+            children.push_back(Child(current_key, current_node));
+        }
+
+        inserted_children.clear();
+        std::sort(children.begin(), children.end());
     }
 
     void
@@ -150,24 +176,23 @@ public:
         values.insert(values.begin(), creation_set.begin(), creation_set.end());
         creation_set.clear();
         for (auto child : children)
-            child->finalize();
+            child.second->finalize();
     }
-
 
     std::vector<ValueType> *
     lookup(KeyType key)
     {
 
         int min = 0;
-        int max = keys.size()-1;
+        int max = children.size()-1;
 
         while (max >= min)
         {
             int mid = min + ((max - min) / 2);
-            PatriciaKey<KeyType> current_key = keys[mid];
+            PatriciaKey<KeyType> current_key = children[mid].first;
             if (current_key.applies_to(key))
             {
-                return children[mid]->lookup(key);
+                return children[mid].second->lookup(key);
             }
             else if(key < current_key.value())
                 max = mid - 1;
@@ -181,15 +206,18 @@ public:
 private:
     std::set<ValueType> creation_set;
     std::vector<ValueType> values;
-    std::vector<PatriciaKey<KeyType>> keys;
-    std::vector<PatriciaNode *> children;
+
+    std::vector<Child> children;
+
+    // This is to optimize insertion of new nodes
+    std::vector<InsertedChild> inserted_children;
 };
 
 template <typename KeyType, typename ValueType>
 class Patricia {
 public:
 
-    Patricia(std::vector<PatriciaPair<KeyType, ValueType>>& pairs)
+    Patricia(std::vector<PatriciaPair<KeyType, ValueType> >& pairs)
     {
         unsigned length = pairs.size();
         for (int offset = sizeof(KeyType) << 3; offset >= 0; offset--)
@@ -208,6 +236,7 @@ public:
                     }
                 }
             }
+            root.finalize_offset();
         }
         root.finalize();
     }
