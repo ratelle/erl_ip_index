@@ -150,6 +150,8 @@ public:
         for (auto child : children)
              child.second->finalize_offset();
 
+        std::sort(inserted_children.begin(), inserted_children.end());
+
         if (inserted_children.size() > 0) {
             PatriciaKey<KeyType> current_key = inserted_children[0].first;
             PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[0].second);
