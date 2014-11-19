@@ -57,6 +57,35 @@ private:
 };
 
 template <typename KeyType, typename ValueType>
+struct PatriciaElem {
+    uint8_t offset;
+    KeyType key;
+    ValueType value;
+
+    PatriciaElem (uint8_t offset_, KeyType key_, ValueType value_) {
+        offset = offset_;
+        key = key_;
+        value = value_;
+    }
+
+    bool operator< (const PatriciaElem& val) const {
+        if (offset > val.offset) {
+            return true;
+        }
+        else if (offset == val.offset && key < val.key) {
+            return true;
+        }
+
+        return false;
+    }
+
+    bool operator== (const PatriciaElem& val) const {
+        return offset == val.offset && key == val.key && value == val.value;
+    }
+
+};
+
+template <typename KeyType, typename ValueType>
 class PatriciaPair {
 
 public:
@@ -150,8 +179,6 @@ public:
         for (auto child : children)
              child.second->finalize_offset();
 
-        std::sort(inserted_children.begin(), inserted_children.end());
-
         if (inserted_children.size() > 0) {
             PatriciaKey<KeyType> current_key = inserted_children[0].first;
             PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[0].second);
@@ -219,27 +246,28 @@ template <typename KeyType, typename ValueType>
 class Patricia {
 public:
 
-    Patricia(std::vector<PatriciaPair<KeyType, ValueType> >& pairs)
+    typedef PatriciaElem<KeyType, ValueType> Elem;
+    typedef PatriciaKey<KeyType> Key;
+
+    Patricia(std::vector<Elem>& elems)
     {
-        unsigned length = pairs.size();
-        for (int offset = sizeof(KeyType) << 3; offset >= 0; offset--)
-        {
-            for (unsigned i = 0; i < length; i++)
-            {
-                ValueType value = pairs[i].value();
-                unsigned keys_length = pairs[i].get_size();
-                for (unsigned j = 0; j < keys_length; j++)
-                {
-                    if (pairs[i].get_key(j).offset() == offset)
-                    {
-                        //cout << offset << endl;
-                        PatriciaKey<KeyType> current_key = pairs[i].get_key(j);
-                        root.insert(current_key, value);
-                    }
-                }
+        uint8_t current_offset;
+
+        std::sort(elems.begin(), elems.end());
+        elems.erase( std::unique( elems.begin(), elems.end() ), elems.end() );
+
+        current_offset = elems[0].offset;
+
+        for (Elem &el : elems) {
+            if (el.offset > current_offset) {
+                root.finalize_offset();
+                current_offset = el.offset;
             }
-            root.finalize_offset();
+            Key key(el.key, el.offset);
+            root.insert(key, el.value);
         }
+
+        root.finalize_offset();
         root.finalize();
     }
 

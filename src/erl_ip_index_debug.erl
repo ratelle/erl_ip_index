@@ -11,26 +11,34 @@
     build_adgear_data_index/0,
     iplist_ids/2,
     test_it/0,
-    verify/4
+    verify/4,
+    now_diff_us/1,
+    benchmark_all/3
 ]).
 
 generate_basic_mask() ->
+    Mask = random:uniform(25) + 7,
     A = random:uniform(256) - 1,
-    B = random:uniform(256) - 1,
-    C = random:uniform(256) - 1,
-    D = random:uniform(256) - 1,
-    Mask = (random:uniform(4)) * 8,
-    B1 = case Mask =< 8 of true -> 0; false -> B end,
-    C1 = case Mask =< 16 of true -> 0; false -> C end,
-    D1 = case Mask =< 24 of true -> 0; false -> D end,
-    {A, B1, C1, D1, Mask}.
+    B = case Mask =< 8 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    C = case Mask =< 16 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    D = case Mask =< 24 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    {A, B, C, D, Mask}.
 
 generate_basic_ip() ->
     A = random:uniform(256) - 1,
     B = random:uniform(256) - 1,
     C = random:uniform(256) - 1,
     D = random:uniform(256) - 1,
-    _X = random:uniform(256) - 1,
+    %_X = random:uniform(256) - 1,
     {A, B, C, D}.
 
 now_diff_us(Timestamp) ->
@@ -194,3 +202,24 @@ test_it() ->
     OldResult = iplist_ids(OldIndex,IP),
     NewResult = erl_ip_index:lookup_ip(NewIndex, IP),
     {list_to_tuple(OldResult), list_to_tuple(NewResult)}.
+
+benchmark_all(NLists, NMasks, NLookups) ->
+    Lists = generate_basic_lists(NLists, NMasks),
+    Timestamp1 = os:timestamp(),
+    Index = erl_ip_index:build_index(Lists),
+    BuildTime = now_diff_us(Timestamp1),
+    Time = benchmark_lookups(Index, NLookups),
+    {Index, BuildTime, Time}.
+
+benchmark_lookups(Index, NLookups) ->
+    Time = benchmark_lookups(Index, NLookups, 0),
+    Time / NLookups.
+
+benchmark_lookups(_, 0, TimeAcc) ->
+    TimeAcc;
+benchmark_lookups(Index, NLookups, TimeAcc) ->
+    Ip = generate_basic_ip(),
+    Timestamp = os:timestamp(),
+    erl_ip_index:lookup_ip(Index, Ip),
+    Time = now_diff_us(Timestamp),
+    benchmark_lookups(Index, NLookups-1, TimeAcc+Time).

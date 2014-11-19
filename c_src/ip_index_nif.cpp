@@ -7,6 +7,7 @@ typedef uint32_t Ipv4Ip;
 typedef PatriciaPair<Ipv4Ip, uint64_t> Ipv4List;
 typedef PatriciaKey<Ipv4Ip> Ipv4Mask;
 typedef Patricia<Ipv4Ip, uint64_t> Ipv4Index;
+typedef PatriciaElem<Ipv4Ip, uint64_t> Ipv4Elem;
 
 extern "C" {
 
@@ -65,65 +66,37 @@ static ERL_NIF_TERM
 internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
 {
     unsigned length;
-    std::vector<Ipv4List> ip_lists;
+    std::vector<Ipv4Elem> ip_elems;
 
     enif_get_list_length(env, list, &length);
-    ip_lists.reserve(length);
+    ip_elems.reserve(length);
 
     for (unsigned i = 0; i < length; i++)
     {
         ERL_NIF_TERM current;
         enif_get_list_cell(env, list, &current, &list);
 
-        const ERL_NIF_TERM *ip_list_tuple;
-        int ip_list_tuple_arity;
-        enif_get_tuple(env, current, &ip_list_tuple_arity, &ip_list_tuple);
+        const ERL_NIF_TERM *ip_elem_tuple;
+        int ip_elem_tuple_arity;
+        enif_get_tuple(env, current, &ip_elem_tuple_arity, &ip_elem_tuple);
 
-        uint32_t ip_list_space_id;
-        uint32_t ip_list_id;
-        uint64_t value;
-        ERL_NIF_TERM ip_list;
-        unsigned ip_list_length;
+        uint32_t offset;
+        Ipv4Ip address;
+        uint32_t ip_elem_space_id;
+        uint32_t ip_elem_list_id;
+        uint64_t combined_id;
 
-        enif_get_uint(env, ip_list_tuple[0], &ip_list_space_id);
-        enif_get_uint(env, ip_list_tuple[1], &ip_list_id);
+        enif_get_uint(env, ip_elem_tuple[0], &offset);
+        enif_get_uint(env, ip_elem_tuple[1], &address);
+        enif_get_uint(env, ip_elem_tuple[2], &ip_elem_space_id);
+        enif_get_uint(env, ip_elem_tuple[3], &ip_elem_list_id);
 
-        value = (static_cast<uint64_t>(ip_list_space_id) << 32) + ip_list_id;
+        combined_id = (static_cast<uint64_t>(ip_elem_space_id) << 32) + ip_elem_list_id;
 
-        ip_list = ip_list_tuple[2];
-        enif_get_list_length(env, ip_list, &ip_list_length);
-
-        std::vector<Ipv4Mask> ip_list_vector;
-        ip_list_vector.reserve(ip_list_length);
-
-        for (unsigned j = 0; j < ip_list_length; j++)
-        {
-            ERL_NIF_TERM current_ip;
-            enif_get_list_cell(env, ip_list, &current_ip, &ip_list);
-
-            const ERL_NIF_TERM *ip_tuple;
-            int ip_tuple_arity;
-            enif_get_tuple(env, current_ip, &ip_tuple_arity, &ip_tuple);
-
-            Ipv4Ip address;
-            uint32_t mask;
-
-            enif_get_uint(env, ip_tuple[0], &address);
-            enif_get_uint(env, ip_tuple[1], &mask);
-
-            // Should check that mask is 32 or lower
-
-            Ipv4Mask ipv4_mask(address, static_cast<uint8_t>(mask));
-
-            ip_list_vector.push_back(ipv4_mask);
-        }
-
-        Ipv4List ipv4_list(ip_list_vector, value);
-
-        ip_lists.push_back(ipv4_list);
+        ip_elems.push_back(Ipv4Elem(static_cast<uint8_t>(offset), address, combined_id));
     }
 
-    Ipv4Index *index = new Ipv4Index(ip_lists);
+    Ipv4Index *index = new Ipv4Index(ip_elems);
     void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
     *wrapper = static_cast<void*>(index);
     ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
