@@ -72,8 +72,11 @@ struct PatriciaElem {
         if (offset > val.offset) {
             return true;
         }
-        else if (offset == val.offset && key < val.key) {
-            return true;
+        else if (offset == val.offset) {
+            if (key < val.key)
+                return true;
+            else if (key == val.key)
+                return value < val.value;
         }
 
         return false;
@@ -123,10 +126,10 @@ class PatriciaNode
 public:
     PatriciaNode() {}
 
-    PatriciaNode(std::set<ValueType>& parent_set, ValueType& value)
+    PatriciaNode(std::vector<ValueType>& parent_values, ValueType value)
     {
-        creation_set = parent_set;
-        creation_set.insert(value);
+        values = parent_values;
+        values.push_back(value);
     }
 
     ~PatriciaNode()
@@ -139,7 +142,7 @@ public:
     }
 
     void
-    insert(PatriciaKey<KeyType>& new_key, ValueType& new_value)
+    insert(PatriciaKey<KeyType>& new_key, ValueType new_value)
     {
         int min = 0;
         int max = children.size()-1;
@@ -148,17 +151,13 @@ public:
         {
             int mid = min + ((max - min) / 2);
             PatriciaKey<KeyType> current_key = children[mid].first;
-            if (current_key == new_key)
+            if (current_key.applies_to(new_key))
             {
-                children[mid].second->add(new_value);
+                if (!std::binary_search(values.begin(), values.end(), new_value)) {
+                    children[mid].second->insert(new_key, new_value);
+                }
                 return;
             }
-            else if (current_key.applies_to(new_key))
-            {
-                children[mid].second->insert(new_key, new_value);
-                return;
-            }
-            // new_key should never apply to current_key if insertion order is respected
             else if(new_key.value() < current_key.value())
                 max = mid - 1;
             else
@@ -171,7 +170,7 @@ public:
     void
     add(ValueType new_value)
     {
-        creation_set.insert(new_value);
+        values.push_back(new_value);
     }
 
     void finalize_offset()
@@ -181,31 +180,20 @@ public:
 
         if (inserted_children.size() > 0) {
             PatriciaKey<KeyType> current_key = inserted_children[0].first;
-            PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[0].second);
+            PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(values, inserted_children[0].second);
             for (unsigned i = 1; i < inserted_children.size(); i++) {
                 if (inserted_children[i].first == current_key)
                     current_node->add(inserted_children[i].second);
                 else {
                     children.push_back(Child(current_key, current_node));
-                    current_key =  inserted_children[i].first;
-                    current_node = new PatriciaNode<KeyType, ValueType>(creation_set, inserted_children[i].second);
+                    current_key = inserted_children[i].first;
+                    current_node = new PatriciaNode<KeyType, ValueType>(values, inserted_children[i].second);
                 }
             }
             children.push_back(Child(current_key, current_node));
+            inserted_children.clear();
+            std::sort(children.begin(), children.end());
         }
-
-        inserted_children.clear();
-        std::sort(children.begin(), children.end());
-    }
-
-    void
-    finalize()
-    {
-        values.reserve(creation_set.size());
-        values.insert(values.begin(), creation_set.begin(), creation_set.end());
-        creation_set.clear();
-        for (auto child : children)
-            child.second->finalize();
     }
 
     std::vector<ValueType> *
@@ -233,12 +221,11 @@ public:
     }
 
 private:
-    std::set<ValueType> creation_set;
+    std::vector<Child> children;
     std::vector<ValueType> values;
 
-    std::vector<Child> children;
-
     // This is to optimize insertion of new nodes
+    //std::set<ValueType> creation_set;
     std::vector<InsertedChild> inserted_children;
 };
 
@@ -259,7 +246,7 @@ public:
         current_offset = elems[0].offset;
 
         for (Elem &el : elems) {
-            if (el.offset > current_offset) {
+            if (el.offset < current_offset) {
                 root.finalize_offset();
                 current_offset = el.offset;
             }
@@ -268,7 +255,6 @@ public:
         }
 
         root.finalize_offset();
-        root.finalize();
     }
 
     std::vector<ValueType> *
