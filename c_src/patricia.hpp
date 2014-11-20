@@ -147,15 +147,16 @@ public:
         int min = 0;
         int max = children.size()-1;
 
+        if (std::binary_search(values.begin(), values.end(), new_value))
+            return;
+
         while (max >= min)
         {
             int mid = min + ((max - min) / 2);
             PatriciaKey<KeyType> current_key = children[mid].first;
             if (current_key.applies_to(new_key))
             {
-                if (!std::binary_search(values.begin(), values.end(), new_value)) {
-                    children[mid].second->insert(new_key, new_value);
-                }
+                children[mid].second->insert(new_key, new_value);
                 return;
             }
             else if(new_key.value() < current_key.value())
@@ -173,6 +174,11 @@ public:
         values.push_back(new_value);
     }
 
+    void finalize()
+    {
+        std::sort(values.begin(), values.end());
+    }
+
     void finalize_offset()
     {
         for (auto child : children)
@@ -185,11 +191,13 @@ public:
                 if (inserted_children[i].first == current_key)
                     current_node->add(inserted_children[i].second);
                 else {
+                    current_node->finalize();
                     children.push_back(Child(current_key, current_node));
                     current_key = inserted_children[i].first;
                     current_node = new PatriciaNode<KeyType, ValueType>(values, inserted_children[i].second);
                 }
             }
+            current_node->finalize();
             children.push_back(Child(current_key, current_node));
             inserted_children.clear();
             std::sort(children.begin(), children.end());
