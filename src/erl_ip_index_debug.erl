@@ -13,7 +13,8 @@
     test_it/0,
     verify/4,
     now_diff_us/1,
-    benchmark_all/3
+    benchmark_all/3,
+    validate/3
 ]).
 
 generate_basic_mask() ->
@@ -204,12 +205,14 @@ test_it() ->
     {list_to_tuple(OldResult), list_to_tuple(NewResult)}.
 
 benchmark_all(NLists, NMasks, NLookups) ->
+    Timestamp2 = os:timestamp(),
     Lists = generate_basic_lists(NLists, NMasks),
+    GenerateTime = now_diff_us(Timestamp2),
     Timestamp1 = os:timestamp(),
     Index = erl_ip_index:build_index(Lists),
     BuildTime = now_diff_us(Timestamp1),
     Time = benchmark_lookups(Index, NLookups),
-    {Index, BuildTime, Time}.
+    {GenerateTime, BuildTime, Time}.
 
 benchmark_lookups(Index, NLookups) ->
     Time = benchmark_lookups(Index, NLookups, 0),
@@ -223,3 +226,35 @@ benchmark_lookups(Index, NLookups, TimeAcc) ->
     erl_ip_index:lookup_ip(Index, Ip),
     Time = now_diff_us(Timestamp),
     benchmark_lookups(Index, NLookups-1, TimeAcc+Time).
+
+generate_mask() ->
+    Mask = random:uniform(25) + 7,
+    A = random:uniform(256) - 1,
+    B = case Mask =< 8 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    C = case Mask =< 16 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    D = case Mask =< 24 of
+        true -> 0;
+        false -> random:uniform(256) - 1
+    end,
+    {A, B, C, D, Mask}.
+
+generate_ip() ->
+    A = random:uniform(256) - 1,
+    B = random:uniform(256) - 1,
+    C = random:uniform(256) - 1,
+    D = random:uniform(256) - 1,
+    {A, B, C, D}.
+
+generate_lists(NLists, NMasks) ->
+    [{IdSpace, Id, [generate_mask() || _N2 <- lists:seq(1, NMasks)]} || _N1 <- lists:seq(1, NLists), IdSpace <- [random:uniform(10000)], Id <- [random:uniform(10000)]].
+
+validate(NLists, NMasks, NCheck) ->
+    Lists = generate_lists(NLists, NMasks),
+    Ips = [generate_ip() || _N <- lists:seq(1, NCheck)],
+    io:format("~p~n~p~n",[Lists,Ips]).
