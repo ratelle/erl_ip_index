@@ -254,7 +254,29 @@ generate_ip() ->
 generate_lists(NLists, NMasks) ->
     [{IdSpace, Id, [generate_mask() || _N2 <- lists:seq(1, NMasks)]} || _N1 <- lists:seq(1, NLists), IdSpace <- [random:uniform(10000)], Id <- [random:uniform(10000)]].
 
-validate(NLists, NMasks, NCheck) ->
+validate(NLists, NMasks, NChecks) ->
+    Timestamp1 = os:timestamp(),
     Lists = generate_lists(NLists, NMasks),
-    Ips = [generate_ip() || _N <- lists:seq(1, NCheck)],
-    io:format("~p~n~p~n",[Lists,Ips]).
+    io:format("Generate Lists : ~p~n",[now_diff_us(Timestamp1)]),
+    Timestamp2 = os:timestamp(),
+    Index = erl_ip_index:build_index(Lists),
+    io:format("Build index : ~p~n",[now_diff_us(Timestamp2)]),
+    run(Index, NChecks).
+
+run(Index, NChecks) ->
+    {ok, File} = file:open("results", [write, raw]),
+    Time = run(Index, NChecks, File, 0),
+    file:close(File),
+    io:format("Run : avg ~p~n",[Time / NChecks]),
+    ok.
+
+run(_Index, 0, _File, Total) ->
+    Total;
+run(Index, NChecks, File, Total) ->
+    Ip = generate_ip(),
+    Timestamp = os:timestamp(),
+    Results = erl_ip_index:lookup_ip(Index, Ip),
+    Time = now_diff_us(Timestamp),
+    Str = io_lib:format("~p : ~p~n", [Ip, Results]),
+    file:write(File, Str),
+    run(Index, NChecks - 1, File, Total+Time).
