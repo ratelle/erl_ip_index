@@ -1,4 +1,5 @@
 -module(erl_ip_index).
+-compile([no_native]).
 
 -export([
     init/0,
