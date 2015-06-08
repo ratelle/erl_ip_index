@@ -6,6 +6,7 @@
     build_index/1,
     async_build_index/1,
     lookup_ip/2,
+    lookup_subnet/3,
     %mask_to_string/1,
     test/0
 ]).
