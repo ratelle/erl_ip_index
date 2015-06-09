@@ -43,7 +43,7 @@ public:
         return (key & static_cast<KeyType>(0xffffffffffffffffll << offset_)) == value_;
     }
 
-    bool applies_to(const PatriciaKey<KeyType> patkey) const {
+    bool applies_to(const PatriciaKey<KeyType>& patkey) const {
         if (offset_ == (sizeof(KeyType) << 3))
             return true;
         return offset_ >= patkey.offset_ &&
@@ -205,7 +205,7 @@ public:
     }
 
     std::vector<ValueType> *
-    lookup(KeyType key)
+    lookup(const PatriciaKey<KeyType>& lookup_key)
     {
 
         int min = 0;
@@ -215,11 +215,11 @@ public:
         {
             int mid = min + ((max - min) / 2);
             PatriciaKey<KeyType> current_key = children[mid].first;
-            if (current_key.applies_to(key))
+            if (current_key.applies_to(lookup_key))
             {
-                return children[mid].second->lookup(key);
+                return children[mid].second->lookup(lookup_key);
             }
-            else if(key < current_key.value())
+            else if(lookup_key.value() < current_key.value())
                 max = mid - 1;
             else
                 min = mid + 1;
@@ -266,9 +266,10 @@ public:
     }
 
     std::vector<ValueType> *
-    lookup (KeyType key)
+    lookup (KeyType key, uint8_t offset)
     {
-        return root.lookup(key);
+        PatriciaKey<KeyType> lookup_key(key, offset);
+        return root.lookup(lookup_key);
     }
 
 private:

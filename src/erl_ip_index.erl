@@ -6,6 +6,7 @@
     build_index/1,
     async_build_index/1,
     lookup_ip/2,
+    lookup_subnet/3,
     %mask_to_string/1,
     test/0
 ]).
@@ -49,7 +50,10 @@ split_ip(Ip) when is_binary(Ip) ->
 split_ip(Ip) when is_list(Ip) ->
     split_ip(list_to_binary(Ip)).
 
-parse_ip({A, B, C, D}) ->
+parse_ip({A, B, C, D}) when is_integer(A), A >= 0, A =< 255,
+                            is_integer(B), B >= 0, B =< 255,
+                            is_integer(C), C >= 0, C =< 255,
+                            is_integer(D), D >= 0, D =< 255 ->
     (A bsl 24) + (B bsl 16) + (C bsl 8) + D;
 parse_ip(Ip) when is_binary(Ip) ->
     parse_ip(split_ip(Ip));
@@ -68,17 +72,20 @@ test() ->
     List = {1, 1, Ips},
     build_index([List]).
 
+lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
+    lookup_subnet_nif(Index, parse_ip(Ip), 32 - Mask).
+
 lookup_ip(Index, Ip) ->
-    lookup_ip_nif(Index, parse_ip(Ip)).
+    lookup_subnet(Index, Ip, 32).
 
 build_index_nif(_IpLists) ->
     {error, ip_index_nif_not_loaded}.
 
-lookup_ip_nif(_Index, _Ip) ->
-    {error, lookup_ip_nif_not_loaded}.
+lookup_subnet_nif(_Index, _Ip, _Offset) ->
+    {error, ip_index_nif_not_loaded}.
 
 async_start_build_index_nif(_Lists) ->
-    {error, lookup_ip_nif_not_loaded}.
+    {error, ip_index_nif_not_loaded}.
 
 async_finish_build_index_nif(_Tid) ->
-    {error, lookup_ip_nif_not_loaded}.
+    {error, ip_index_nif_not_loaded}.

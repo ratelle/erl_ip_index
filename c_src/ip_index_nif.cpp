@@ -168,15 +168,17 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     void **wrapper;
     Ipv4Index *index;
     uint32_t ip;
+    uint32_t offset;
 
     enif_get_resource(env, argv[0], ip_index_type, &pointer);
     enif_get_uint(env, argv[1], &ip);
+    enif_get_uint(env, argv[2], &offset);
 
     wrapper = static_cast<void**>(pointer);
 
     index = static_cast<Ipv4Index*>(*wrapper);
 
-    std::vector<uint64_t> *results = index->lookup(ip);
+    std::vector<uint64_t> *results = index->lookup(ip, (uint8_t)offset) ;
 
     unsigned length = results->size();
 
@@ -200,7 +202,7 @@ static ErlNifFunc nif_functions[] = {
     {"build_index_nif", 1, build_index_nif},
     {"async_start_build_index_nif", 1, async_start_build_index_nif},
     {"async_finish_build_index_nif", 1, async_finish_build_index_nif},
-    {"lookup_ip_nif", 2, lookup_ip_nif}
+    {"lookup_subnet_nif", 3, lookup_ip_nif}
 };
 
 ERL_NIF_INIT(erl_ip_index, nif_functions, &on_load, NULL, NULL, NULL);
