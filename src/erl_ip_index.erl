@@ -4,6 +4,7 @@
 -export([
     init/0,
     build_index/1,
+    build_index_nif_new/1,
     async_build_index/1,
     lookup_ip/2,
     lookup_subnet/3,
@@ -79,6 +80,9 @@ lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
 build_index_nif(_IpLists) ->
+    {error, ip_index_nif_not_loaded}.
+
+build_index_nif_new(_IpLists) ->
     {error, ip_index_nif_not_loaded}.
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->

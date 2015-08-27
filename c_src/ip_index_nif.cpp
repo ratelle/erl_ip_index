@@ -62,6 +62,56 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
     return 0;
 }
 
+static void
+    inspect_ip_list(ErlNifEnv *env, ERL_NIF_TERM ip_list_tuple, std::vector<Ipv4Elem> &ip_elems) {
+
+    const ERL_NIF_TERM *ip_list_tuple_content;
+    int ip_list_tuple_arity;
+    enif_get_tuple(env, ip_list_tuple, &ip_list_tuple_arity, &ip_list_tuple_content);
+
+    uint32_t ip_elem_space_id;
+    uint32_t ip_elem_list_id;
+    uint64_t combined_id;
+    ErlNifBinary ip_bin;
+
+    enif_get_uint(env, ip_list_tuple_content[0], &ip_elem_space_id);
+    enif_get_uint(env, ip_list_tuple_content[1], &ip_elem_list_id);
+    enif_inspect_binary(env, ip_list_tuple_content[2], &ip_bin);
+
+    combined_id = (static_cast<uint64_t>(ip_elem_space_id) << 32) + ip_elem_list_id;
+
+    ip_elems.reserve(ip_elems.size() + ip_bin.size / 5);
+
+    for (unsigned i = 0; i < ip_bin.size; i+=5) {
+        uint32_t ip = (ip_bin.data[i+0] << 24) + (ip_bin.data[i+1] << 16) + (ip_bin.data[i+2] << 8) + ip_bin.data[i+3];
+        uint8_t offset = static_cast<uint8_t>(32 - ip_bin.data[i+4]);
+
+        ip_elems.push_back(Ipv4Elem(offset, ip, combined_id));
+    }
+}
+
+static ERL_NIF_TERM
+internal_build_index_new(ErlNifEnv *env, ERL_NIF_TERM list)
+{
+    unsigned length;
+    std::vector<Ipv4Elem> ip_elems;
+
+    enif_get_list_length(env, list, &length);
+    for (unsigned i = 0; i < length; i++) {
+        ERL_NIF_TERM current_list;
+        enif_get_list_cell(env, list, &current_list, &list);
+
+        inspect_ip_list(env, current_list, ip_elems);
+    }
+
+    Ipv4Index *index = new Ipv4Index(ip_elems);
+    void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
+    *wrapper = static_cast<void*>(index);
+    ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
+    enif_release_resource(static_cast<void*>(wrapper));
+    return retval;
+}
+
 static ERL_NIF_TERM
 internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
 {
@@ -109,6 +159,12 @@ build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     return internal_build_index(env, argv[0]);
 }
+
+    static ERL_NIF_TERM
+    build_index_nif_new(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+    {
+        return internal_build_index_new(env, argv[0]);
+    }
 
 static void *
 async_build_index_thread(void *args)
@@ -200,6 +256,7 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
 static ErlNifFunc nif_functions[] = {
     {"build_index_nif", 1, build_index_nif},
+    {"build_index_nif_new", 1, build_index_nif_new},
     {"async_start_build_index_nif", 1, async_start_build_index_nif},
     {"async_finish_build_index_nif", 1, async_finish_build_index_nif},
     {"lookup_subnet_nif", 3, lookup_ip_nif}

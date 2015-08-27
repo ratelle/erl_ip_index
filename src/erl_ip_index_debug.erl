@@ -14,7 +14,14 @@
     verify/4,
     now_diff_us/1,
     benchmark_all/3,
-    validate/3
+    validate/3,
+
+    convert_bert/1,
+    test_build_new/1,
+    test_build_orig/1,
+
+    build_bert/0,
+    build_bin/0
 ]).
 
 generate_basic_mask() ->
@@ -280,3 +287,81 @@ run(Index, NChecks, File, Total) ->
     Str = io_lib:format("~p : ~p~n", [Ip, Results]),
     file:write(File, Str),
     run(Index, NChecks - 1, File, Total+Time).
+
+
+%% Tests for representation
+
+test_build_orig(File) ->
+    Timestamp = os:timestamp(),
+    {ok, Bin} = file:read_file(File),
+    [{_, Lists}] = binary_to_term(Bin),
+    Lists2 = [{0, Id, List} || {Id, List} <- Lists],
+    erl_ip_index:build_index(Lists2),
+    now_diff_us(Timestamp).
+
+test_build_new(File) ->
+    Timestamp = os:timestamp(),
+    {ok, Bin} = file:read_file(File),
+    [{_, Lists}] = binary_to_term(Bin),
+    Lists2 = [{0, Id, List} || {Id, List} <- Lists],
+    erl_ip_index:build_index_nif_new(Lists2),
+    now_diff_us(Timestamp).
+        
+        
+    
+
+
+convert_bert(File) ->
+    {ok, Bin} = file:read_file(File),
+    [{_, Lists}] = binary_to_term(Bin),
+    Converted = lists:map(fun convert_list/1, Lists),
+    term_to_binary([{iplists, Converted}]).
+
+convert_list({Id, Ips}) ->
+    {Id, build_mask_binary(lists:map(fun parse_ip_mask/1, Ips), <<>>)}.
+
+parse_ip_mask(I) when is_tuple(I) ->
+    I;
+parse_ip_mask(IpMask) when is_binary(IpMask) ->
+    [IpBin, Mask] = binary:split(IpMask, <<"/">>),
+    {A, B, C, D} = split_ip(IpBin),
+    {A, B, C, D, binary_to_integer(Mask)};
+parse_ip_mask(IpMask) when is_list(IpMask) ->
+    parse_ip_mask(list_to_binary(IpMask)).
+
+split_ip(Ip) when is_binary(Ip) ->
+    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]);
+split_ip(Ip) when is_list(Ip) ->
+    split_ip(list_to_binary(Ip)).
+
+build_mask_binary([{A, B, C, D, E} | Rest], Bin) ->
+    build_mask_binary(Rest, <<Bin/binary, A, B, C, D, E>>);
+build_mask_binary([], Bin) ->
+    Bin.
+
+
+
+%% From text file, generate bin
+
+-define(IP_FILE,"ip_original").
+
+build_bert() ->
+    Bin = build_bin(),
+    Term = [{iplists, [{1, Bin}]}],
+    Bert = term_to_binary(Term),
+    file:write_file("medicx_iplist.bert", Bert).
+
+build_bin() ->
+    {ok, File} = file:open(?IP_FILE, [raw, read, read_ahead, binary]),
+    {ok, _} = file:read_line(File),
+    build_bin(File, <<>>).
+
+build_bin(File, Bin) ->
+    case file:read_line(File) of
+        {ok, Line} ->
+            Chomped = binary:part(Line, 0, size(Line)-1),
+            [Bin1, Bin2, Bin3, Bin4] = binary:split(Chomped, <<".">>, [global]),
+            build_bin(File, <<Bin/binary, (binary_to_integer(Bin1)), (binary_to_integer(Bin2)), (binary_to_integer(Bin3)), (binary_to_integer(Bin4)), 32>>);
+        eof ->
+            Bin
+    end.
