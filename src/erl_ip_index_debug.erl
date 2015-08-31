@@ -18,8 +18,7 @@
 
     test_build_new/1,
     test_build_orig/1,
-
-         rebuild_bert/3
+    rebuild_bert/3
 ]).
 
 generate_basic_mask() ->
@@ -305,16 +304,6 @@ test_build_new(File) ->
     erl_ip_index:build_index_nif_new(Lists2),
     now_diff_us(Timestamp).
         
-        
-    
-
-
-convert_bert(File) ->
-    {ok, Bin} = file:read_file(File),
-    [{_, Lists}] = binary_to_term(Bin),
-    Converted = lists:map(fun convert_list/1, Lists),
-    term_to_binary([{iplists, Converted}]).
-
 convert_list({Id, Ips}) ->
     {Id, build_mask_binary(lists:map(fun parse_ip_mask/1, Ips), <<>>)}.
 
