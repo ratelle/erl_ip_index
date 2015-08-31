@@ -82,9 +82,12 @@ public:
                     tree_elems.push_back(Ipv4TreeElem(offset, ip, list.id));
                 }
             }
+
+            if (large_list) {
+                maps[maps.size()-1].finalize();
+            }
         }
 
-        maps[maps.size()-1].finalize();
         tree = Ipv4Tree(tree_elems);
     }
 
