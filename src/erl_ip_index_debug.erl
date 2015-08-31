@@ -16,12 +16,10 @@
     benchmark_all/3,
     validate/3,
 
-    convert_bert/1,
     test_build_new/1,
     test_build_orig/1,
 
-    build_bert/0,
-    build_bin/0
+         rebuild_bert/3
 ]).
 
 generate_basic_mask() ->
@@ -343,25 +341,13 @@ build_mask_binary([], Bin) ->
 
 %% From text file, generate bin
 
--define(IP_FILE,"ip_original").
-
-build_bert() ->
-    Bin = build_bin(),
-    Term = [{iplists, [{1, Bin}]}],
+rebuild_bert(SourceFile, IpFile, DestinationFile) ->
+    {ok, Bin} = file:read_file(SourceFile),
+    [{_, Lists}] = binary_to_term(Bin),
+    Converted = lists:map(fun convert_list/1, Lists),
+    {ok, IpBinary} = file:read_file(IpFile),
+    NewLists = [{10000, IpBinary}, {10001, IpBinary}, {10002, IpBinary}],
+    Result = Converted ++ NewLists,
+    Term = [{iplists, Result}],
     Bert = term_to_binary(Term),
-    file:write_file("medicx_iplist.bert", Bert).
-
-build_bin() ->
-    {ok, File} = file:open(?IP_FILE, [raw, read, read_ahead, binary]),
-    {ok, _} = file:read_line(File),
-    build_bin(File, <<>>).
-
-build_bin(File, Bin) ->
-    case file:read_line(File) of
-        {ok, Line} ->
-            Chomped = binary:part(Line, 0, size(Line)-1),
-            [Bin1, Bin2, Bin3, Bin4] = binary:split(Chomped, <<".">>, [global]),
-            build_bin(File, <<Bin/binary, (binary_to_integer(Bin1)), (binary_to_integer(Bin2)), (binary_to_integer(Bin3)), (binary_to_integer(Bin4)), 32>>);
-        eof ->
-            Bin
-    end.
+    file:write_file(DestinationFile, Bert).

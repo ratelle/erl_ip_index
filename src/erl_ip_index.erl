@@ -35,7 +35,7 @@ build_index(IpLists) ->
     build_index_nif(IpLists).
 
 async_build_index(IpLists) ->
-    {Ref, Tid} = async_start_build_index_nif(erl_ip_index_parser:parse_ip_lists(IpLists)),
+    {Ref, Tid} = async_start_build_index_nif(IpLists),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),
