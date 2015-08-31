@@ -31,6 +31,7 @@ public:
 
     Ipv4Map(Ipv4ListId i) {
         id = i;
+        finalized = false;
         bitmap.map = ewah_new();
     }
 
