@@ -244,6 +244,8 @@ public:
     typedef PatriciaElem<KeyType, ValueType> Elem;
     typedef PatriciaKey<KeyType> Key;
 
+    Patricia() { }
+
     Patricia(std::vector<Elem>& elems)
     {
         uint8_t current_offset;

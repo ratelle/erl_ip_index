@@ -9,6 +9,9 @@ deps:
 compile:
 	$(REBAR) compile
 
+fast:
+	$(REBAR) compile skip_deps=true
+
 clean:
 	@rm -rf deps
 	@$(REBAR) clean

@@ -4,7 +4,6 @@
 -export([
     init/0,
     build_index/1,
-    build_index_nif_new/1,
     async_build_index/1,
     lookup_ip/2,
     lookup_subnet/3,
@@ -33,7 +32,7 @@ priv_dir() ->
     end.
 
 build_index(IpLists) ->
-    build_index_nif(erl_ip_index_parser:parse_ip_lists(IpLists)).
+    build_index_nif(IpLists).
 
 async_build_index(IpLists) ->
     {Ref, Tid} = async_start_build_index_nif(erl_ip_index_parser:parse_ip_lists(IpLists)),
@@ -74,15 +73,12 @@ test() ->
     build_index([List]).
 
 lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
-    lookup_subnet_nif(Index, parse_ip(Ip), 32 - Mask).
+    lookup_subnet_nif(Index, parse_ip(Ip), Mask).
 
 lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
 build_index_nif(_IpLists) ->
-    {error, ip_index_nif_not_loaded}.
-
-build_index_nif_new(_IpLists) ->
     {error, ip_index_nif_not_loaded}.
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->

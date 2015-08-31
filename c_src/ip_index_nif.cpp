@@ -1,15 +1,10 @@
-#include "patricia.hpp"
-#include <erl_nif.h>
 #include <vector>
 #include <cstdint>
-
-typedef uint32_t Ipv4Ip;
-typedef PatriciaPair<Ipv4Ip, uint64_t> Ipv4List;
-typedef PatriciaKey<Ipv4Ip> Ipv4Mask;
-typedef Patricia<Ipv4Ip, uint64_t> Ipv4Index;
-typedef PatriciaElem<Ipv4Ip, uint64_t> Ipv4Elem;
+#include "ip_index.hpp"
 
 extern "C" {
+
+#include <erl_nif.h>
 
 static ErlNifResourceType *ip_index_type;
 static ErlNifResourceType *ip_index_builder_type;
@@ -62,91 +57,43 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
     return 0;
 }
 
-static void
-    inspect_ip_list(ErlNifEnv *env, ERL_NIF_TERM ip_list_tuple, std::vector<Ipv4Elem> &ip_elems) {
-
-    const ERL_NIF_TERM *ip_list_tuple_content;
-    int ip_list_tuple_arity;
-    enif_get_tuple(env, ip_list_tuple, &ip_list_tuple_arity, &ip_list_tuple_content);
-
-    uint32_t ip_elem_space_id;
-    uint32_t ip_elem_list_id;
-    uint64_t combined_id;
-    ErlNifBinary ip_bin;
-
-    enif_get_uint(env, ip_list_tuple_content[0], &ip_elem_space_id);
-    enif_get_uint(env, ip_list_tuple_content[1], &ip_elem_list_id);
-    enif_inspect_binary(env, ip_list_tuple_content[2], &ip_bin);
-
-    combined_id = (static_cast<uint64_t>(ip_elem_space_id) << 32) + ip_elem_list_id;
-
-    ip_elems.reserve(ip_elems.size() + ip_bin.size / 5);
-
-    for (unsigned i = 0; i < ip_bin.size; i+=5) {
-        uint32_t ip = (ip_bin.data[i+0] << 24) + (ip_bin.data[i+1] << 16) + (ip_bin.data[i+2] << 8) + ip_bin.data[i+3];
-        uint8_t offset = static_cast<uint8_t>(32 - ip_bin.data[i+4]);
-
-        ip_elems.push_back(Ipv4Elem(offset, ip, combined_id));
-    }
-}
-
-static ERL_NIF_TERM
-internal_build_index_new(ErlNifEnv *env, ERL_NIF_TERM list)
-{
-    unsigned length;
-    std::vector<Ipv4Elem> ip_elems;
-
-    enif_get_list_length(env, list, &length);
-    for (unsigned i = 0; i < length; i++) {
-        ERL_NIF_TERM current_list;
-        enif_get_list_cell(env, list, &current_list, &list);
-
-        inspect_ip_list(env, current_list, ip_elems);
-    }
-
-    Ipv4Index *index = new Ipv4Index(ip_elems);
-    void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
-    *wrapper = static_cast<void*>(index);
-    ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
-    enif_release_resource(static_cast<void*>(wrapper));
-    return retval;
-}
-
 static ERL_NIF_TERM
 internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
 {
     unsigned length;
-    std::vector<Ipv4Elem> ip_elems;
+    std::vector<Ipv4List> lists;
 
-    enif_get_list_length(env, list, &length);
-    ip_elems.reserve(length);
+    if (!enif_get_list_length(env, list, &length))
+        return atom_undefined;
 
-    for (unsigned i = 0; i < length; i++)
-    {
-        ERL_NIF_TERM current;
-        enif_get_list_cell(env, list, &current, &list);
-
-        const ERL_NIF_TERM *ip_elem_tuple;
-        int ip_elem_tuple_arity;
-        enif_get_tuple(env, current, &ip_elem_tuple_arity, &ip_elem_tuple);
-
-        uint32_t offset;
-        Ipv4Ip address;
+    for (unsigned i = 0; i < length; i++) {
+        ERL_NIF_TERM current_list;
+        const ERL_NIF_TERM *ip_list_tuple_content;
+        int ip_list_tuple_arity;
         uint32_t ip_elem_space_id;
         uint32_t ip_elem_list_id;
         uint64_t combined_id;
+        ErlNifBinary ip_bin;
 
-        enif_get_uint(env, ip_elem_tuple[0], &offset);
-        enif_get_uint(env, ip_elem_tuple[1], &address);
-        enif_get_uint(env, ip_elem_tuple[2], &ip_elem_space_id);
-        enif_get_uint(env, ip_elem_tuple[3], &ip_elem_list_id);
+        if (!enif_get_list_cell(env, list, &current_list, &list))
+            return atom_undefined;
+
+        if (!enif_get_tuple(env, current_list, &ip_list_tuple_arity, &ip_list_tuple_content))
+            return atom_undefined;
+
+        if (!enif_get_uint(env, ip_list_tuple_content[0], &ip_elem_space_id))
+            return atom_undefined;
+        if (!enif_get_uint(env, ip_list_tuple_content[1], &ip_elem_list_id))
+            return atom_undefined;
+        if (!enif_inspect_binary(env, ip_list_tuple_content[2], &ip_bin))
+            return atom_undefined;
 
         combined_id = (static_cast<uint64_t>(ip_elem_space_id) << 32) + ip_elem_list_id;
 
-        ip_elems.push_back(Ipv4Elem(static_cast<uint8_t>(offset), address, combined_id));
+        lists.push_back(Ipv4List(combined_id, ip_bin.size, ip_bin.data));
     }
 
-    Ipv4Index *index = new Ipv4Index(ip_elems);
+    Ipv4Index *index = new Ipv4Index(lists);
     void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
     *wrapper = static_cast<void*>(index);
     ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
@@ -159,12 +106,6 @@ build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     return internal_build_index(env, argv[0]);
 }
-
-    static ERL_NIF_TERM
-    build_index_nif_new(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-    {
-        return internal_build_index_new(env, argv[0]);
-    }
 
 static void *
 async_build_index_thread(void *args)
@@ -224,24 +165,24 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     void **wrapper;
     Ipv4Index *index;
     uint32_t ip;
-    uint32_t offset;
+    uint32_t mask;
 
     enif_get_resource(env, argv[0], ip_index_type, &pointer);
     enif_get_uint(env, argv[1], &ip);
-    enif_get_uint(env, argv[2], &offset);
+    enif_get_uint(env, argv[2], &mask);
 
     wrapper = static_cast<void**>(pointer);
 
     index = static_cast<Ipv4Index*>(*wrapper);
 
-    std::vector<uint64_t> *results = index->lookup(ip, (uint8_t)offset) ;
+    std::vector<uint64_t> results = index->lookup(ip, (uint8_t)mask);
 
-    unsigned length = results->size();
+    unsigned length = results.size();
 
     ERL_NIF_TERM *results_array = static_cast<ERL_NIF_TERM*>(enif_alloc(sizeof(ERL_NIF_TERM) * length));
 
     for (unsigned i = 0; i < length; i++) {
-        uint64_t value = results->at(i);
+        uint64_t value = results.at(i);
         uint32_t ip_list_space_id = static_cast<uint32_t>(value >> 32);
         uint32_t ip_list_id = static_cast<uint32_t>(value & 0x00000000ffffffffll);
         results_array[i] = enif_make_tuple2(env, enif_make_uint(env, ip_list_space_id), enif_make_uint(env, ip_list_id));
@@ -256,7 +197,6 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
 static ErlNifFunc nif_functions[] = {
     {"build_index_nif", 1, build_index_nif},
-    {"build_index_nif_new", 1, build_index_nif_new},
     {"async_start_build_index_nif", 1, async_start_build_index_nif},
     {"async_finish_build_index_nif", 1, async_finish_build_index_nif},
     {"lookup_subnet_nif", 3, lookup_ip_nif}
