@@ -1,4 +1,5 @@
 #include "patricia.hpp"
+#include <cassert>
 #include <cstring>
 #include <memory>
 
@@ -29,36 +30,39 @@ struct Ipv4List {
 
 struct free_delete
 {
-    void operator()(void* x) { ewah_free(static_cast<ewah_bitmap *>(x)); }
+    void operator()(void* x) {
+	indexed_ewah_map *map = static_cast<indexed_ewah_map *>(x);
+	ewah_free(map->map);
+	delete map;
+    }
 };
 
 class Ipv4Map {
 public:
     Ipv4ListId id;
 
-    Ipv4Map(Ipv4ListId i) : id(i), internal_map(ewah_new()), finalized(false) {
-        memset(&bitmap, 0, sizeof(indexed_ewah_map));
-        bitmap.map = internal_map.get();
+    Ipv4Map(Ipv4ListId i) : id(i), bitmap(new indexed_ewah_map()), finalized(false) {
+	assert(0 == bitmap.get()->map);
+	bitmap.get()->map = ewah_new();
     }
 
     void add_ip(Ipv4Ip ip) {
         if (!finalized) {
-            ewah_set(bitmap.map, ip);
+            ewah_set(bitmap.get()->map, ip);
         }
     }
 
     void finalize(void) {
         finalized = true;
-        ewah_build_index(&bitmap);
+        ewah_build_index(bitmap.get());
     }
 
     bool lookup(Ipv4Ip ip) {
-        return indexed_ewah_get(&bitmap, ip);
+        return indexed_ewah_get(bitmap.get(), ip);
     }
 
 private:
-    indexed_ewah_map bitmap;
-    std::unique_ptr<ewah_bitmap, free_delete> internal_map;
+    std::unique_ptr<indexed_ewah_map, free_delete> bitmap;
     bool finalized;
 };
 
