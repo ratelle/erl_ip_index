@@ -120,7 +120,7 @@ private:
 template <typename KeyType, typename ValueType>
 class PatriciaNode
 {
-    typedef std::pair<PatriciaKey<KeyType>, PatriciaNode *> Child;
+    typedef std::pair<PatriciaKey<KeyType>, PatriciaNode> Child;
     typedef std::pair<PatriciaKey<KeyType>, ValueType> InsertedChild;
 
 public:
@@ -129,16 +129,7 @@ public:
     PatriciaNode(std::vector<ValueType>& parent_values, ValueType value)
     {
         values = parent_values;
-        values.push_back(value);
-    }
-
-    ~PatriciaNode()
-    {
-        unsigned size = children.size();
-        for (unsigned i = 0; i < size; i++)
-        {
-            delete children[i].second;
-        }
+        values.emplace_back(value);
     }
 
     void
@@ -156,7 +147,7 @@ public:
             PatriciaKey<KeyType> current_key = children[mid].first;
             if (current_key.applies_to(new_key))
             {
-                children[mid].second->insert(new_key, new_value);
+                children[mid].second.insert(new_key, new_value);
                 return;
             }
             else if(new_key.value() < current_key.value())
@@ -165,13 +156,13 @@ public:
                 min = mid + 1;
         }
 
-        inserted_children.push_back(InsertedChild(new_key, new_value));
+        inserted_children.emplace_back(InsertedChild(new_key, new_value));
     }
 
     void
     add(ValueType new_value)
     {
-        values.push_back(new_value);
+        values.emplace_back(new_value);
     }
 
     void finalize()
@@ -182,29 +173,29 @@ public:
     void finalize_offset()
     {
         for (auto child : children)
-             child.second->finalize_offset();
+             child.second.finalize_offset();
 
         if (inserted_children.size() > 0) {
             PatriciaKey<KeyType> current_key = inserted_children[0].first;
-            PatriciaNode<KeyType, ValueType> *current_node = new PatriciaNode<KeyType, ValueType>(values, inserted_children[0].second);
+            PatriciaNode<KeyType, ValueType> current_node = PatriciaNode<KeyType, ValueType>(values, inserted_children[0].second);
             for (unsigned i = 1; i < inserted_children.size(); i++) {
                 if (inserted_children[i].first == current_key)
-                    current_node->add(inserted_children[i].second);
+                    current_node.add(inserted_children[i].second);
                 else {
-                    current_node->finalize();
-                    children.push_back(Child(current_key, current_node));
+                    current_node.finalize();
+                    children.emplace_back(Child(current_key, current_node));
                     current_key = inserted_children[i].first;
-                    current_node = new PatriciaNode<KeyType, ValueType>(values, inserted_children[i].second);
+                    current_node = PatriciaNode<KeyType, ValueType>(values, inserted_children[i].second);
                 }
             }
-            current_node->finalize();
-            children.push_back(Child(current_key, current_node));
+            current_node.finalize();
+            children.emplace_back(Child(current_key, current_node));
             inserted_children.clear();
             std::sort(children.begin(), children.end());
         }
     }
 
-    std::vector<ValueType> *
+    std::vector<ValueType>&
     lookup(const PatriciaKey<KeyType>& lookup_key)
     {
 
@@ -217,7 +208,7 @@ public:
             PatriciaKey<KeyType> current_key = children[mid].first;
             if (current_key.applies_to(lookup_key))
             {
-                return children[mid].second->lookup(lookup_key);
+                return children[mid].second.lookup(lookup_key);
             }
             else if(lookup_key.value() < current_key.value())
                 max = mid - 1;
@@ -225,7 +216,12 @@ public:
                 min = mid + 1;
         }
 
-        return &values;
+        return values;
+    }
+
+    bool operator<(const PatriciaNode& other) const
+    {
+	return (&values) < (&other.values);
     }
 
 private:
@@ -246,7 +242,7 @@ public:
 
     Patricia() { }
 
-    Patricia(std::vector<Elem>& elems)
+    Patricia(std::vector<Elem> elems)
     {
         uint8_t current_offset;
 
@@ -267,7 +263,7 @@ public:
         root.finalize_offset();
     }
 
-    std::vector<ValueType> *
+    std::vector<ValueType>
     lookup (KeyType key, uint8_t offset)
     {
         PatriciaKey<KeyType> lookup_key(key, offset);

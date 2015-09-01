@@ -71,7 +71,7 @@ public:
             bool large_list = list.length >= LARGE_LIST_THRESOLD;
 
             if (large_list) {
-                maps.push_back(Ipv4Map(list.id));
+                maps.emplace_back(Ipv4Map(list.id));
             }
             else {
                 tree_elems.reserve(tree_elems.size() + list.length / 5);
@@ -86,7 +86,7 @@ public:
                 }
                 else {
                     uint8_t offset = 32 - mask;
-                    tree_elems.push_back(Ipv4TreeElem(offset, ip, list.id));
+                    tree_elems.emplace_back(Ipv4TreeElem(offset, ip, list.id));
                 }
             }
 
@@ -99,12 +99,12 @@ public:
     }
 
     std::vector<Ipv4ListId> lookup(Ipv4Ip ip, uint8_t mask) {
-        std::vector<Ipv4ListId> result = *(tree.lookup(ip, 32 - mask));
+        std::vector<Ipv4ListId> result = tree.lookup(ip, 32 - mask);
 
         if (mask == 32) {
             for (Ipv4Map &map : maps) {
                 if (map.lookup(ip)) {
-                    result.push_back(map.id);
+                    result.emplace_back(map.id);
                 }
             }
         }
