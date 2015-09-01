@@ -202,6 +202,6 @@ static ErlNifFunc nif_functions[] = {
     {"lookup_subnet_nif", 3, lookup_ip_nif}
 };
 
-ERL_NIF_INIT(erl_ip_index, nif_functions, &on_load, NULL, NULL, NULL);
+ERL_NIF_INIT(erl_ip_index, nif_functions, &on_load, NULL, NULL, NULL)
 
 }
