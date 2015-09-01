@@ -32,7 +32,12 @@ public:
     Ipv4Map(Ipv4ListId i) {
         id = i;
         finalized = false;
+        memset(&bitmap, 0, sizeof(indexed_ewah_map));
         bitmap.map = ewah_new();
+    }
+
+    ~Ipv4Map() {
+        ewah_free(bitmap.map);
     }
 
     void add_ip(Ipv4Ip ip) {
