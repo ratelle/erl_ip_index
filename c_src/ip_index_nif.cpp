@@ -127,6 +127,7 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     ErlNifTid *tid = static_cast<ErlNifTid*>(enif_alloc_resource(ip_index_builder_type, sizeof(ErlNifTid)));
     ERL_NIF_TERM retval;
     char thread_name[] = "ip_index_builder";
+    ErlNifThreadOpts opts;
 
     struct index_env *ie = static_cast<struct index_env*>(enif_alloc(sizeof(struct index_env)));
     ie->env = enif_alloc_env();
@@ -134,7 +135,9 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     ie->ref = enif_make_copy(ie->env, ref);
     enif_self(env, &(ie->pid));
 
-    if (enif_thread_create(thread_name, tid, async_build_index_thread, (void*)ie, NULL) == 0)
+    opts.suggested_stack_size = 0x2000;
+
+    if (enif_thread_create(thread_name, tid, async_build_index_thread, (void*)ie, &opts) == 0)
         retval = enif_make_tuple2(env, ref, enif_make_resource(env, tid));
     else
     {
