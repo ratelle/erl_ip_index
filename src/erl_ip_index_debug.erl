@@ -293,7 +293,7 @@ test_build_orig(File) ->
     {ok, Bin} = file:read_file(File),
     [{_, Lists}] = binary_to_term(Bin),
     Lists2 = [{0, Id, List} || {Id, List} <- Lists],
-    erl_ip_index:build_index(Lists2),
+    erl_ip_index:async_build_index(Lists2),
     now_diff_us(Timestamp).
 
 test_build_new(File) ->
