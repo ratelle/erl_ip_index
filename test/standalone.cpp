@@ -11,6 +11,21 @@
 
 using namespace std;
 
+static void test(uint8_t *data, size_t size, uint32_t ip, uint8_t mask)
+{
+    std::vector<Ipv4List> lists;
+    lists.push_back(Ipv4List(1L<<32 | 1, size, data));
+    lists.push_back(Ipv4List(1L<<32 | 2, size, data));
+    // Ensure we have at least one radix tree
+    lists.push_back(Ipv4List(1L<<32 | 3, (size < 10) ? size : 10, data));
+
+    Ipv4Index *index = new Ipv4Index(lists);
+    std::vector<uint64_t> results = index->lookup(ip, (uint8_t)mask);
+    for (auto it = results.begin(); it != results.end(); ++it)
+	cout << hex << *it << endl;
+    delete index;
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 4);
@@ -24,16 +39,8 @@ int main(int argc, char **argv)
     }
     size_t size = n*5;
 
-    std::vector<Ipv4List> lists;
-    lists.push_back(Ipv4List(1L<<32 | 1, size, data));
-    lists.push_back(Ipv4List(1L<<32 | 2, size, data));
-    // Ensure we have at least one radix tree
-    lists.push_back(Ipv4List(1L<<32 | 3, (size < 10) ? size : 10, data));
-
-    Ipv4Index *index = new Ipv4Index(lists);
     uint32_t ip = strtoul(argv[2], NULL, 10);
     uint8_t mask = strtoul(argv[3], NULL, 10);
-    std::vector<uint64_t> results = index->lookup(ip, (uint8_t)mask);
-    for (auto it = results.begin(); it != results.end(); ++it)
-	cout << hex << *it << endl;
+    test(data, size, ip, mask);
+    free(data);
 }
