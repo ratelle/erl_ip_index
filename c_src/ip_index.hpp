@@ -71,7 +71,7 @@ public:
             bool large_list = list.length >= LARGE_LIST_THRESOLD;
 
             if (large_list) {
-                maps.emplace_back(Ipv4Map(list.id));
+                maps.emplace_back(list.id);
             }
             else {
                 tree_elems.reserve(tree_elems.size() + list.length / 5);
@@ -86,7 +86,7 @@ public:
                 }
                 else {
                     uint8_t offset = 32 - mask;
-                    tree_elems.emplace_back(Ipv4TreeElem(offset, ip, list.id));
+                    tree_elems.emplace_back(offset, ip, list.id);
                 }
             }
 
