@@ -26,19 +26,18 @@ struct Ipv4List {
     const unsigned char *data;
 };
 
+struct free_delete
+{
+    void operator()(void* x) { ewah_free(static_cast<ewah_bitmap *>(x)); }
+};
+
 class Ipv4Map {
 public:
     Ipv4ListId id;
 
-    Ipv4Map(Ipv4ListId i) {
-        id = i;
-        finalized = false;
+    Ipv4Map(Ipv4ListId i) : id(i), internal_map(ewah_new()), finalized(false) {
         memset(&bitmap, 0, sizeof(indexed_ewah_map));
-        bitmap.map = ewah_new();
-    }
-
-    ~Ipv4Map() {
-        ewah_free(bitmap.map);
+        bitmap.map = internal_map.get();
     }
 
     void add_ip(Ipv4Ip ip) {
@@ -58,6 +57,7 @@ public:
 
 private:
     indexed_ewah_map bitmap;
+    std::unique_ptr<ewah_bitmap, free_delete> internal_map;
     bool finalized;
 };
 
