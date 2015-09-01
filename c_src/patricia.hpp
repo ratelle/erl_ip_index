@@ -3,7 +3,6 @@
 #include <vector>
 #include <iostream>
 #include <set>
-using namespace std;
 
 template <typename KeyType>
 class PatriciaKey {
@@ -26,6 +25,10 @@ public:
 
     bool operator==(const PatriciaKey<KeyType>& key) const {
         return value_ == key.value_ && offset_ == key.offset_;
+    }
+
+    bool operator!=(const PatriciaKey<KeyType>& key) const {
+        return value_ != key.value_ || offset_ != key.offset_;
     }
 
     bool operator<(const PatriciaKey<KeyType>& key) const {
@@ -121,22 +124,17 @@ template <typename KeyType, typename ValueType>
 class PatriciaNode
 {
     typedef std::pair<PatriciaKey<KeyType>, PatriciaNode> Child;
-    typedef std::pair<PatriciaKey<KeyType>, ValueType> InsertedChild;
 
 public:
-    PatriciaNode() {}
+    PatriciaNode() : finalized_children(0) {}
 
-    PatriciaNode(std::vector<ValueType>& parent_values, ValueType value)
-    {
-        values = parent_values;
-        values.emplace_back(value);
-    }
+    PatriciaNode(std::vector<ValueType>& parent_values) : values(parent_values), finalized_children(0) {}
 
     void
     insert(PatriciaKey<KeyType>& new_key, ValueType new_value)
     {
         int min = 0;
-        int max = children.size()-1;
+        int max = finalized_children - 1;
 
         if (std::binary_search(values.begin(), values.end(), new_value))
             return;
@@ -156,7 +154,11 @@ public:
                 min = mid + 1;
         }
 
-        inserted_children.emplace_back(InsertedChild(new_key, new_value));
+        if (finalized_children == children.size() || children.back().first != new_key) {
+            children.emplace_back(new_key, PatriciaNode(values));
+        }
+
+        children.back().second.add(new_value);
     }
 
     void
@@ -172,30 +174,20 @@ public:
 
     void finalize_offset()
     {
-        for (auto child : children)
-             child.second.finalize_offset();
+        for (auto it = children.begin(); it != children.begin() + finalized_children; it++) {
+            (*it).second.finalize_offset();
+        }
 
-        if (inserted_children.size() > 0) {
-            PatriciaKey<KeyType> current_key = inserted_children[0].first;
-            PatriciaNode<KeyType, ValueType> current_node = PatriciaNode<KeyType, ValueType>(values, inserted_children[0].second);
-            for (unsigned i = 1; i < inserted_children.size(); i++) {
-                if (inserted_children[i].first == current_key)
-                    current_node.add(inserted_children[i].second);
-                else {
-                    current_node.finalize();
-                    children.emplace_back(Child(current_key, current_node));
-                    current_key = inserted_children[i].first;
-                    current_node = PatriciaNode<KeyType, ValueType>(values, inserted_children[i].second);
-                }
+        if (finalized_children < children.size()) {
+            for(auto it = children.begin() + finalized_children; it != children.end(); it++) {
+                (*it).second.finalize();
             }
-            current_node.finalize();
-            children.emplace_back(Child(current_key, current_node));
-            inserted_children.clear();
             std::sort(children.begin(), children.end());
+            finalized_children = children.size();
         }
     }
 
-    std::vector<ValueType>&
+    std::vector<ValueType>
     lookup(const PatriciaKey<KeyType>& lookup_key)
     {
 
@@ -221,16 +213,13 @@ public:
 
     bool operator<(const PatriciaNode& other) const
     {
-	return (&values) < (&other.values);
+        return (&values) < (&other.values);
     }
 
 private:
     std::vector<Child> children;
     std::vector<ValueType> values;
-
-    // This is to optimize insertion of new nodes
-    //std::set<ValueType> creation_set;
-    std::vector<InsertedChild> inserted_children;
+    unsigned finalized_children;
 };
 
 template <typename KeyType, typename ValueType>
@@ -244,23 +233,23 @@ public:
 
     Patricia(std::vector<Elem> elems)
     {
-        uint8_t current_offset;
+        if (elems.size() > 0) {
+            std::sort(elems.begin(), elems.end());
+            elems.erase( std::unique( elems.begin(), elems.end() ), elems.end() );
 
-        std::sort(elems.begin(), elems.end());
-        elems.erase( std::unique( elems.begin(), elems.end() ), elems.end() );
+            uint8_t current_offset = elems[0].offset;
 
-        current_offset = elems[0].offset;
-
-        for (Elem &el : elems) {
-            if (el.offset < current_offset) {
-                root.finalize_offset();
-                current_offset = el.offset;
+            for (Elem &el : elems) {
+                if (el.offset < current_offset) {
+                    root.finalize_offset();
+                    current_offset = el.offset;
+                }
+                Key key(el.key, el.offset);
+                root.insert(key, el.value);
             }
-            Key key(el.key, el.offset);
-            root.insert(key, el.value);
-        }
 
-        root.finalize_offset();
+            root.finalize_offset();
+        }
     }
 
     std::vector<ValueType>
