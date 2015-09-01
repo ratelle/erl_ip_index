@@ -1,5 +1,6 @@
 #include "patricia.hpp"
-#include <string.h>
+#include <cstring>
+#include <memory>
 
 extern "C" {
 #include "indexed_ewah.h"
