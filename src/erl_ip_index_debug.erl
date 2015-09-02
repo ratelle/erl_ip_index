@@ -2,7 +2,8 @@
 
 -export([
     build_full_index/2,
-    test_range_results/5
+    test_range_results/5,
+    benchmark/4
 ]).
 
 -define(LOCAL_SPACE, 0).
@@ -61,3 +62,49 @@ partition_global_lists([{Id, Mask} | Rest], Map) ->
     partition_global_lists(Rest, NewMap).
 
 
+benchmark(BertFile, BlacklistFile, Runs, Runsize) ->
+    Index = build_full_index(BertFile, BlacklistFile, Threshold),
+    Total = benchmark_index(Index, Runs, Runsize),
+    AverageRun = Total / Runs,
+    AverageLookup = AverageRun / Runsize,
+    io:format("Average lookup took ~p microseconds~n",[AverageLookup]).
+
+benchmark_index(Index, Runs, Runsize) ->
+    benchmark_index(Index, Runs, Runsize, 0).
+
+benchmark_index(_, 0, _, Result) ->
+    Result;
+benchmark_index(Index, Runs, Runsize, Result) ->
+    Time = benchmark_run(Index, Runsize),
+    benchmark_index(Index, Runs-1, Runsize, Time + Result).
+
+hash_random_number(N) ->
+    erlang:phash2(os:timestamp(), N).
+
+random_ip() ->
+    hash_random_number(4294967296).
+
+generate_ips(N) ->
+    io:format("Generating ~p ips~n",[N]),
+    generate_ips(N, []).
+
+generate_ips(0, Ips) ->
+    Ips;
+generate_ips(N, Ips) ->
+    generate_ips(N-1, [random_ip() | Ips]).
+
+benchmark_run(Index, Runsize) ->
+    Ips = generate_ips(Runsize),
+    io:format("Starting run~n"),
+    erlang:garbage_collect(),
+    Timestamp = os:timestamp(),
+    benchmark_run_ips(Index, Ips),
+    Time = now_diff_us(Timestamp),
+    io:format("Run completed in ~p milliseconds~n",[Time / 1000]),
+    Time.
+        
+benchmark_run_ips(Index, [Ip | Ips]) ->
+    erl_ip_index:lookup_subnet_nif(Index, Ip, 0),
+    benchmark_run_ips(Index, Ips);
+benchmark_run_ips(_, []) ->
+    ok.
