@@ -1,19 +1,11 @@
 REBAR=./rebar
 
-all: deps compile
-
-deps:
-	@$(REBAR) update-deps
-	@$(REBAR) get-deps
+all: compile
 
 compile:
 	$(REBAR) compile
 
-fast:
-	$(REBAR) compile skip_deps=true
-
 clean:
-	@rm -rf deps
 	@$(REBAR) clean
 
 CFLAGS=-Wall -Wextra -pedantic -std=gnu11 -g
@@ -24,4 +16,4 @@ check_valgrind: $(INDEXED_EWAH_O) test/standalone.cpp
 	$(CXX) $(CXXFLAGS) -Ic_src $^ -o test/standalone
 	valgrind ./test/standalone 3000000 0 32
 
-.PHONY: all deps compile clean check_valgrind
+.PHONY: all compile clean check_valgrind

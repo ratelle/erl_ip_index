@@ -3,12 +3,10 @@
 
 -export([
     init/0,
-    build_index/1,
-    async_build_index/1,
+    build_index/2,
+    async_build_index/2,
     lookup_ip/2,
-    lookup_subnet/3,
-    %mask_to_string/1,
-    test/0
+    lookup_subnet/3
 ]).
 
 -on_load(init/0).
@@ -31,11 +29,11 @@ priv_dir() ->
         Dir -> Dir
     end.
 
-build_index(IpLists) ->
-    build_index_nif(IpLists).
+build_index(IpLists, LargeListThresold) ->
+    build_index_nif(IpLists, LargeListThresold).
 
-async_build_index(IpLists) ->
-    {Ref, Tid} = async_start_build_index_nif(IpLists),
+async_build_index(IpLists, LargeListThresold) ->
+    {Ref, Tid} = async_start_build_index_nif(IpLists, LargeListThresold),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),
@@ -60,31 +58,19 @@ parse_ip(Ip) when is_binary(Ip) ->
 parse_ip(Ip) when is_list(Ip) ->
     parse_ip(list_to_binary(Ip)).
 
-%% mask_to_string(Mask) ->
-%%     Parsed = parse_ip_mask(Mask),
-%%     {Number, _} = convert_ip_mask(Parsed),
-%%     Rep = integer_to_list(Number, 2),
-%%     [$0 || _ <- lists:seq(1,32 - length(Rep))] ++ Rep.
-
-test() ->
-    {ok, Content} = file:read_file("/home/jeremie/lapresse_ip"),
-    Ips = binary:split(Content, <<"\n">>, [trim, global]),
-    List = {1, 1, Ips},
-    build_index([List]).
-
 lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
     lookup_subnet_nif(Index, parse_ip(Ip), Mask).
 
 lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
-build_index_nif(_IpLists) ->
+build_index_nif(_IpLists, _LargeListThresold) ->
     {error, ip_index_nif_not_loaded}.
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->
     {error, ip_index_nif_not_loaded}.
 
-async_start_build_index_nif(_Lists) ->
+async_start_build_index_nif(_Lists, _LargeListThresold) ->
     {error, ip_index_nif_not_loaded}.
 
 async_finish_build_index_nif(_Tid) ->

@@ -270,7 +270,7 @@ void ewah_each_bit(struct ewah_bitmap *self, void (*callback)(size_t, void*), vo
 		++pointer;
 
 		for (k = 0; k < rlw_get_literal_words(word); ++k) {
-			int c;
+			unsigned c;
 
 			/* todo: zero count optimization */
 			for (c = 0; c < BITS_IN_WORD; ++c, ++pos) {

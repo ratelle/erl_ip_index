@@ -20,11 +20,13 @@ struct index_env {
     ERL_NIF_TERM ref;
     ErlNifPid pid;
     ERL_NIF_TERM ip_lists;
+    ERL_NIF_TERM large_list_thresold;
 };
 
 static void
 ip_index_type_destructor(ErlNifEnv* env, void* obj)
 {
+    (void)env;
     void **wrapper = static_cast<void**>(obj);
     Ipv4Index *index = static_cast<Ipv4Index*>(*wrapper);
     delete index;
@@ -44,6 +46,8 @@ make_atom(ErlNifEnv *env, const char *name)
 static int
 on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 {
+    (void)priv;
+    (void)info;
 
     atom_ok = make_atom(env, "ok");
     atom_error = make_atom(env, "error");
@@ -58,10 +62,14 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 }
 
 static ERL_NIF_TERM
-internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
+internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list, ERL_NIF_TERM large_list_thresold)
 {
     unsigned length;
     std::vector<Ipv4List> lists;
+    unsigned thresold;
+
+    if (!enif_get_uint(env, large_list_thresold, &thresold))
+        return atom_undefined;
 
     if (!enif_get_list_length(env, list, &length))
         return atom_undefined;
@@ -93,7 +101,7 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
         lists.push_back(Ipv4List(combined_id, ip_bin.size, ip_bin.data));
     }
 
-    Ipv4Index *index = new Ipv4Index(lists);
+    Ipv4Index *index = new Ipv4Index(lists, thresold);
     void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
     *wrapper = static_cast<void*>(index);
     ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
@@ -104,14 +112,15 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list)
 static ERL_NIF_TERM
 build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    return internal_build_index(env, argv[0]);
+    (void)argc;
+    return internal_build_index(env, argv[0], argv[1]);
 }
 
 static void *
 async_build_index_thread(void *args)
 {
     struct index_env *ie = (struct index_env*)args;
-    ERL_NIF_TERM result = internal_build_index(ie->env, ie->ip_lists);
+    ERL_NIF_TERM result = internal_build_index(ie->env, ie->ip_lists, ie->large_list_thresold);
 
     enif_send(NULL, &(ie->pid), ie->env, enif_make_tuple2(ie->env, ie->ref, result));
 
@@ -123,6 +132,8 @@ async_build_index_thread(void *args)
 static ERL_NIF_TERM
 async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+    (void)argc;
+
     ERL_NIF_TERM ref = enif_make_ref(env);
     ErlNifTid *tid = static_cast<ErlNifTid*>(enif_alloc_resource(ip_index_builder_type, sizeof(ErlNifTid)));
     ERL_NIF_TERM retval;
@@ -132,9 +143,11 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     struct index_env *ie = static_cast<struct index_env*>(enif_alloc(sizeof(struct index_env)));
     ie->env = enif_alloc_env();
     ie->ip_lists = enif_make_copy(ie->env, argv[0]);
+    ie->large_list_thresold = enif_make_copy(ie->env, argv[1]);
     ie->ref = enif_make_copy(ie->env, ref);
     enif_self(env, &(ie->pid));
 
+    /* 8 megs to be on the safe side */
     opts.suggested_stack_size = 0x2000;
 
     if (enif_thread_create(thread_name, tid, async_build_index_thread, (void*)ie, &opts) == 0)
@@ -152,6 +165,8 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 static ERL_NIF_TERM
 async_finish_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+    (void)argc;
+
     void *tid;
     if (!enif_get_resource(env, argv[0], ip_index_builder_type, &tid))
         return enif_make_badarg(env);
@@ -164,6 +179,8 @@ async_finish_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
 static ERL_NIF_TERM
 lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+    (void)argc;
+
     void *pointer;
     void **wrapper;
     Ipv4Index *index;
@@ -199,10 +216,10 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ErlNifFunc nif_functions[] = {
-    {"build_index_nif", 1, build_index_nif},
-    {"async_start_build_index_nif", 1, async_start_build_index_nif},
-    {"async_finish_build_index_nif", 1, async_finish_build_index_nif},
-    {"lookup_subnet_nif", 3, lookup_ip_nif}
+    {"build_index_nif", 2, build_index_nif, 0},
+    {"async_start_build_index_nif", 2, async_start_build_index_nif, 0},
+    {"async_finish_build_index_nif", 1, async_finish_build_index_nif, 0},
+    {"lookup_subnet_nif", 3, lookup_ip_nif, 0}
 };
 
 ERL_NIF_INIT(erl_ip_index, nif_functions, &on_load, NULL, NULL, NULL)

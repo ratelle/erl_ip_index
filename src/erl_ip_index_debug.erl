@@ -6,19 +6,12 @@
     generate_basic_lists/2,
     build_old_index/1,
     test/3,
-    parse_adgear_data_file/0,
     parse_adgear_data_file/1,
-    build_adgear_data_index/0,
     iplist_ids/2,
-    test_it/0,
     verify/4,
     now_diff_us/1,
-    benchmark_all/3,
-    validate/3,
-
-    test_build_new/1,
-    test_build_orig/1,
-    rebuild_bert/4
+    rebuild_bert/4,
+    build_full_index/2
 ]).
 
 generate_basic_mask() ->
@@ -161,14 +154,28 @@ iplist_ids_int(Tid, {_A} = Ip) when is_tuple(Ip) ->
               end,
     [Results].
 
-build_adgear_data_index() ->
-    Parsed = parse_adgear_data_file(),
-    PreLists = build_lists(Parsed),
-    %Ets = ets:new(names, [set, public, {read_concurrency, true}]),
-    %ets:insert(Ets, [{Id, Title} || {Id, Title, _} <- PreLists]),
-    Lists = [{Id, Masks} || {Id, _, Masks} <- PreLists],
-    erl_ip_index:build_index_nif(Lists).
 
+%% Benchmarking and testing
+
+build_full_index(_BertFile, BlacklistFile) ->
+    parse_adgear_data_file(BlacklistFile).
+
+%% build_adgear_data_index() ->
+%%     Parsed = parse_adgear_data_file(),
+%%     PreLists = build_lists(Parsed),
+%%     %Ets = ets:new(names, [set, public, {read_concurrency, true}]),
+%%     %ets:insert(Ets, [{Id, Title} || {Id, Title, _} <- PreLists]),
+%%     Lists = [{Id, Masks} || {Id, _, Masks} <- PreLists],
+%%     erl_ip_index:build_index_nif(Lists).
+
+%% test_build_orig(File) ->
+%%     Timestamp = os:timestamp(),
+%%     {ok, Bin} = file:read_file(File),
+%%     [{_, Lists}] = binary_to_term(Bin),
+%%     Lists2 = [{0, Id, List} || {Id, List} <- Lists],
+%%     Index = erl_ip_index:async_build_index(Lists2),
+%%     now_diff_us(Timestamp).
+    
 build_lists([{Title, _} | _] = Parsed) ->
     build_lists(Parsed, 0, Title, [], []).
 
@@ -179,9 +186,6 @@ build_lists([{NewTitle, _} | _] = All, CurrentId, CurrentTitle, CurrentMasks, Re
 build_lists([], CurrentId, CurrentTitle, CurrentMasks, Results) ->
     [{CurrentId, CurrentTitle, CurrentMasks} | Results].
 
-parse_adgear_data_file() ->
-    parse_adgear_data_file("/home/jeremie/work/adgear-data/ip/generated/blacklisted-ip-ranges.txt").
-
 parse_adgear_data_file(File) ->
     {ok, Bin} = file:read_file(File),
     Lines = binary:split(Bin, <<"\n">>, [global, trim]),
@@ -189,121 +193,21 @@ parse_adgear_data_file(File) ->
 
 parse_adgear_data_line(Line) ->
     [Title, Rest] = binary:split(Line, <<",">>),
-    IpMask = erl_ip_index:parse_ip_mask(Rest),
+    IpMask = erl_ip_index_parser:parse_ip_mask(Rest),
     {Title, IpMask}.
 
-test_it() ->
-   Lists =
-        [
-         {11,
-          [{224,228,0,0,16}]},
-         {12,
-          [
-           {224,0,0,0,8}]}
-         ],
-    IP = {224,228,203,149},
-    OldIndex = build_old_index(Lists),
-    NewIndex = erl_ip_index:build_index(Lists),
-    OldResult = iplist_ids(OldIndex,IP),
-    NewResult = erl_ip_index:lookup_ip(NewIndex, IP),
-    {list_to_tuple(OldResult), list_to_tuple(NewResult)}.
-
-benchmark_all(NLists, NMasks, NLookups) ->
-    Timestamp2 = os:timestamp(),
-    Lists = generate_basic_lists(NLists, NMasks),
-    GenerateTime = now_diff_us(Timestamp2),
-    Timestamp1 = os:timestamp(),
-    Index = erl_ip_index:build_index(Lists),
-    BuildTime = now_diff_us(Timestamp1),
-    Time = benchmark_lookups(Index, NLookups),
-    {GenerateTime, BuildTime, Time}.
-
-benchmark_lookups(Index, NLookups) ->
-    Time = benchmark_lookups(Index, NLookups, 0),
-    Time / NLookups.
-
-benchmark_lookups(_, 0, TimeAcc) ->
-    TimeAcc;
-benchmark_lookups(Index, NLookups, TimeAcc) ->
-    Ip = generate_basic_ip(),
-    Timestamp = os:timestamp(),
-    erl_ip_index:lookup_ip(Index, Ip),
-    Time = now_diff_us(Timestamp),
-    benchmark_lookups(Index, NLookups-1, TimeAcc+Time).
-
-generate_mask() ->
-    Mask = random:uniform(25) + 7,
-    A = random:uniform(256) - 1,
-    B = case Mask =< 8 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    C = case Mask =< 16 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    D = case Mask =< 24 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    {A, B, C, D, Mask}.
-
-generate_ip() ->
-    A = random:uniform(256) - 1,
-    B = random:uniform(256) - 1,
-    C = random:uniform(256) - 1,
-    D = random:uniform(256) - 1,
-    {A, B, C, D}.
-
-generate_lists(NLists, NMasks) ->
-    [{IdSpace, Id, [generate_mask() || _N2 <- lists:seq(1, NMasks)]} || _N1 <- lists:seq(1, NLists), IdSpace <- [random:uniform(10000)], Id <- [random:uniform(10000)]].
-
-validate(NLists, NMasks, NChecks) ->
-    Timestamp1 = os:timestamp(),
-    Lists = generate_lists(NLists, NMasks),
-    io:format("Generate Lists : ~p~n",[now_diff_us(Timestamp1)]),
-    Timestamp2 = os:timestamp(),
-    Index = erl_ip_index:build_index(Lists),
-    io:format("Build index : ~p~n",[now_diff_us(Timestamp2)]),
-    run(Index, NChecks).
-
-run(Index, NChecks) ->
-    {ok, File} = file:open("results", [write, raw]),
-    Time = run(Index, NChecks, File, 0),
-    file:close(File),
-    io:format("Run : avg ~p~n",[Time / NChecks]),
-    ok.
-
-run(_Index, 0, _File, Total) ->
-    Total;
-run(Index, NChecks, File, Total) ->
-    Ip = generate_ip(),
-    Timestamp = os:timestamp(),
-    Results = erl_ip_index:lookup_ip(Index, Ip),
-    Time = now_diff_us(Timestamp),
-    Str = io_lib:format("~p : ~p~n", [Ip, Results]),
-    file:write(File, Str),
-    run(Index, NChecks - 1, File, Total+Time).
-
-
-%% Tests for representation
-
-test_build_orig(File) ->
-    Timestamp = os:timestamp(),
-    {ok, Bin} = file:read_file(File),
+%% Rebuild new binary ip list bertfile from old bertfile adding a series of ipfiles.
+rebuild_bert(SourceFile, DestinationFile, IpFiles, StartingId) ->
+    {ok, Bin} = file:read_file(SourceFile),
     [{_, Lists}] = binary_to_term(Bin),
-    Lists2 = [{0, Id, List} || {Id, List} <- Lists],
-    erl_ip_index:async_build_index(Lists2),
-    now_diff_us(Timestamp).
+    Converted = lists:map(fun convert_list/1, Lists),
+    NewLists = [get_list(IpFile) || IpFile <- IpFiles],
+    NewListsTuples = lists:zip(lists:seq(StartingId, StartingId + length(NewLists) - 1), NewLists),
+    Result = Converted ++ NewListsTuples,
+    Term = [{iplists, Result}],
+    Bert = term_to_binary(Term),
+    file:write_file(DestinationFile, Bert).
 
-test_build_new(File) ->
-    Timestamp = os:timestamp(),
-    {ok, Bin} = file:read_file(File),
-    [{_, Lists}] = binary_to_term(Bin),
-    Lists2 = [{0, Id, List} || {Id, List} <- Lists],
-    erl_ip_index:build_index_nif_new(Lists2),
-    now_diff_us(Timestamp).
-        
 convert_list({Id, Ips}) ->
     {Id, build_mask_binary(lists:map(fun parse_ip_mask/1, Ips), <<>>)}.
 
@@ -325,21 +229,6 @@ build_mask_binary([{A, B, C, D, E} | Rest], Bin) ->
     build_mask_binary(Rest, <<Bin/binary, A, B, C, D, E>>);
 build_mask_binary([], Bin) ->
     Bin.
-
-
-
-%% From text file, generate bin
-
-rebuild_bert(SourceFile, DestinationFile, IpFiles, StartingId) ->
-    {ok, Bin} = file:read_file(SourceFile),
-    [{_, Lists}] = binary_to_term(Bin),
-    Converted = lists:map(fun convert_list/1, Lists),
-    NewLists = [get_list(IpFile) || IpFile <- IpFiles],
-    NewListsTuples = lists:zip(lists:seq(StartingId, StartingId + length(NewLists) - 1), NewLists),
-    Result = Converted ++ NewListsTuples,
-    Term = [{iplists, Result}],
-    Bert = term_to_binary(Term),
-    file:write_file(DestinationFile, Bert).
 
 get_list(IpFile) ->
     {ok, IpBinary} = file:read_file(IpFile),
