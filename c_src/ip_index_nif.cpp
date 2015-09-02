@@ -20,7 +20,7 @@ struct index_env {
     ERL_NIF_TERM ref;
     ErlNifPid pid;
     ERL_NIF_TERM ip_lists;
-    ERL_NIF_TERM large_list_thresold;
+    ERL_NIF_TERM large_list_threshold;
 };
 
 static void
@@ -62,13 +62,13 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 }
 
 static ERL_NIF_TERM
-internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list, ERL_NIF_TERM large_list_thresold)
+internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list, ERL_NIF_TERM large_list_threshold)
 {
     unsigned length;
     std::vector<Ipv4List> lists;
-    unsigned thresold;
+    unsigned threshold;
 
-    if (!enif_get_uint(env, large_list_thresold, &thresold))
+    if (!enif_get_uint(env, large_list_threshold, &threshold))
         return atom_undefined;
 
     if (!enif_get_list_length(env, list, &length))
@@ -101,7 +101,7 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM list, ERL_NIF_TERM large_list_
         lists.push_back(Ipv4List(combined_id, ip_bin.size, ip_bin.data));
     }
 
-    Ipv4Index *index = new Ipv4Index(lists, thresold);
+    Ipv4Index *index = new Ipv4Index(lists, threshold);
     void **wrapper = static_cast<void**>(enif_alloc_resource(ip_index_type, sizeof(void*)));
     *wrapper = static_cast<void*>(index);
     ERL_NIF_TERM retval = enif_make_resource(env, static_cast<void*>(wrapper));
@@ -120,7 +120,7 @@ static void *
 async_build_index_thread(void *args)
 {
     struct index_env *ie = (struct index_env*)args;
-    ERL_NIF_TERM result = internal_build_index(ie->env, ie->ip_lists, ie->large_list_thresold);
+    ERL_NIF_TERM result = internal_build_index(ie->env, ie->ip_lists, ie->large_list_threshold);
 
     enif_send(NULL, &(ie->pid), ie->env, enif_make_tuple2(ie->env, ie->ref, result));
 
@@ -143,7 +143,7 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     struct index_env *ie = static_cast<struct index_env*>(enif_alloc(sizeof(struct index_env)));
     ie->env = enif_alloc_env();
     ie->ip_lists = enif_make_copy(ie->env, argv[0]);
-    ie->large_list_thresold = enif_make_copy(ie->env, argv[1]);
+    ie->large_list_threshold = enif_make_copy(ie->env, argv[1]);
     ie->ref = enif_make_copy(ie->env, ref);
     enif_self(env, &(ie->pid));
 

@@ -6,7 +6,8 @@
     build_index/2,
     async_build_index/2,
     lookup_ip/2,
-    lookup_subnet/3
+    lookup_subnet/3,
+    lookup_subnet_nif/3
 ]).
 
 -on_load(init/0).
@@ -29,11 +30,11 @@ priv_dir() ->
         Dir -> Dir
     end.
 
-build_index(IpLists, LargeListThresold) ->
-    build_index_nif(IpLists, LargeListThresold).
+build_index(IpLists, LargeListThreshold) ->
+    build_index_nif(IpLists, LargeListThreshold).
 
-async_build_index(IpLists, LargeListThresold) ->
-    {Ref, Tid} = async_start_build_index_nif(IpLists, LargeListThresold),
+async_build_index(IpLists, LargeListThreshold) ->
+    {Ref, Tid} = async_start_build_index_nif(IpLists, LargeListThreshold),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),
@@ -64,13 +65,13 @@ lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
 lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
-build_index_nif(_IpLists, _LargeListThresold) ->
+build_index_nif(_IpLists, _LargeListThreshold) ->
     {error, ip_index_nif_not_loaded}.
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->
     {error, ip_index_nif_not_loaded}.
 
-async_start_build_index_nif(_Lists, _LargeListThresold) ->
+async_start_build_index_nif(_Lists, _LargeListThreshold) ->
     {error, ip_index_nif_not_loaded}.
 
 async_finish_build_index_nif(_Tid) ->

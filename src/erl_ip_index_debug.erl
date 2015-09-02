@@ -6,12 +6,13 @@
     generate_basic_lists/2,
     build_old_index/1,
     test/3,
-    parse_adgear_data_file/1,
     iplist_ids/2,
     verify/4,
     now_diff_us/1,
     rebuild_bert/4,
-    build_full_index/2
+    build_full_index/3,
+    build_full_lists/2,
+    benchmark/5
 ]).
 
 generate_basic_mask() ->
@@ -157,8 +158,76 @@ iplist_ids_int(Tid, {_A} = Ip) when is_tuple(Ip) ->
 
 %% Benchmarking and testing
 
-build_full_index(_BertFile, BlacklistFile) ->
-    parse_adgear_data_file(BlacklistFile).
+-define(LOCAL_SPACE,0).
+-define(GLOBAL_SPACE,1).
+
+benchmark(BertFile, BlacklistFile, Threshold, Runs, Runsize) ->
+    Index = build_full_index(BertFile, BlacklistFile, Threshold),
+    Total = benchmark_index(Index, Runs, Runsize),
+    AverageRun = Total / Runs,
+    AverageLookup = AverageRun / Runsize,
+    io:format("Average lookup took ~p microseconds~n",[AverageLookup]).
+
+benchmark_index(Index, Runs, Runsize) ->
+    benchmark_index(Index, Runs, Runsize, 0).
+
+benchmark_index(_, 0, _, Result) ->
+    Result;
+benchmark_index(Index, Runs, Runsize, Result) ->
+    Time = benchmark_run(Index, Runsize),
+    benchmark_index(Index, Runs-1, Runsize, Time + Result).
+
+hash_random_number(N) ->
+    erlang:phash2(os:timestamp(), N).
+
+random_ip() ->
+    hash_random_number(4294967296).
+
+generate_ips(N) ->
+    io:format("Generating ~p ips~n",[N]),
+    generate_ips(N, []).
+
+generate_ips(0, Ips) ->
+    Ips;
+generate_ips(N, Ips) ->
+    generate_ips(N-1, [random_ip() | Ips]).
+
+benchmark_run(Index, Runsize) ->
+    Ips = generate_ips(Runsize),
+    io:format("Starting run~n"),
+    erlang:garbage_collect(),
+    Timestamp = os:timestamp(),
+    benchmark_run_ips(Index, Ips),
+    Time = now_diff_us(Timestamp),
+    io:format("Run completed in ~p milliseconds~n",[Time / 1000]),
+    Time.
+        
+benchmark_run_ips(Index, [Ip | Ips]) ->
+    erl_ip_index:lookup_subnet_nif(Index, Ip, 32),
+    benchmark_run_ips(Index, Ips);
+benchmark_run_ips(_, []) ->
+    ok.
+
+build_full_index(BertFile, BlacklistFile, Threshold) ->
+    Lists = build_full_lists(BertFile, BlacklistFile),
+    Timestamp = os:timestamp(),
+    Index = erl_ip_index:async_build_index(Lists, Threshold),
+    Time = now_diff_us(Timestamp) / 1000000,
+    io:format("Index built in ~p seconds~n", [Time]),
+    Index.
+
+build_full_lists(BertFile, BlacklistFile) ->
+    BlacklistedLists = build_blacklisted_lists(BlacklistFile),
+    BertLists = build_bert_lists(BertFile),
+    BlacklistedLists ++ BertLists.
+  
+build_blacklisted_lists(BlacklistFile) ->
+    [{?GLOBAL_SPACE, Id, List} || {Id, List} <- lists:map(fun convert_list/1, parse_global_lists_file(BlacklistFile))].
+
+build_bert_lists(BertFile) ->
+    {ok, Bin} = file:read_file(BertFile),
+    [{iplists, Lists}] = binary_to_term(Bin),
+    [{?LOCAL_SPACE, Id, List} || {Id, List} <- Lists].
 
 %% build_adgear_data_index() ->
 %%     Parsed = parse_adgear_data_file(),
@@ -176,25 +245,17 @@ build_full_index(_BertFile, BlacklistFile) ->
 %%     Index = erl_ip_index:async_build_index(Lists2),
 %%     now_diff_us(Timestamp).
     
-build_lists([{Title, _} | _] = Parsed) ->
-    build_lists(Parsed, 0, Title, [], []).
+parse_global_lists_file(Filename) ->
+    {ok, Content} = file:read_file(Filename),
+    ParsedLines = [binary:split(Line, <<",">>, [global, trim]) || Line <- binary:split(Content, <<"\n">>, [global, trim])],
+    TrimmedLines = [{binary_to_integer(BinaryId), Mask} || [BinaryId, _, Mask] <- ParsedLines],
+    partition_global_lists(TrimmedLines, maps:new()).
 
-build_lists([{CurrentTitle, Mask} | Rest], CurrentId, CurrentTitle, CurrentMasks, Results) ->
-    build_lists(Rest, CurrentId, CurrentTitle, [Mask | CurrentMasks], Results);
-build_lists([{NewTitle, _} | _] = All, CurrentId, CurrentTitle, CurrentMasks, Results) ->
-    build_lists(All, CurrentId + 1, NewTitle, [], [{CurrentId, CurrentTitle, CurrentMasks} | Results]);
-build_lists([], CurrentId, CurrentTitle, CurrentMasks, Results) ->
-    [{CurrentId, CurrentTitle, CurrentMasks} | Results].
-
-parse_adgear_data_file(File) ->
-    {ok, Bin} = file:read_file(File),
-    Lines = binary:split(Bin, <<"\n">>, [global, trim]),
-    [parse_adgear_data_line(Line) || Line <- Lines].
-
-parse_adgear_data_line(Line) ->
-    [Title, Rest] = binary:split(Line, <<",">>),
-    IpMask = erl_ip_index_parser:parse_ip_mask(Rest),
-    {Title, IpMask}.
+partition_global_lists([], Map) ->
+    maps:to_list(Map);
+partition_global_lists([{Id, Mask} | Rest], Map) ->
+    NewMap = maps:put(Id, [Mask | maps:get(Id, Map, [])], Map),
+    partition_global_lists(Rest, NewMap).
 
 %% Rebuild new binary ip list bertfile from old bertfile adding a series of ipfiles.
 rebuild_bert(SourceFile, DestinationFile, IpFiles, StartingId) ->

@@ -7,7 +7,7 @@ extern "C" {
 #include "indexed_ewah.h"
 }
 
-#define DEFAULT_LARGE_LIST_THRESOLD 1000000
+#define DEFAULT_LARGE_LIST_THRESHOLD 1000000
 
 typedef uint32_t Ipv4Ip;
 typedef uint64_t Ipv4ListId;
@@ -68,13 +68,13 @@ private:
 
 class Ipv4Index {
 public:
-    Ipv4Index(std::vector<Ipv4List>& lists) : Ipv4Index(lists, DEFAULT_LARGE_LIST_THRESOLD) {}
+    Ipv4Index(std::vector<Ipv4List>& lists) : Ipv4Index(lists, DEFAULT_LARGE_LIST_THRESHOLD) {}
 
-    Ipv4Index(std::vector<Ipv4List>& lists, unsigned large_list_thresold) {
+    Ipv4Index(std::vector<Ipv4List>& lists, unsigned large_list_threshold) {
         std::vector<Ipv4TreeElem> tree_elems;
 
         for (Ipv4List &list : lists) {
-            bool large_list = list.length >= large_list_thresold;
+            bool large_list = list.length / 5 >= large_list_threshold;
 
             if (large_list) {
                 maps.emplace_back(list.id);
