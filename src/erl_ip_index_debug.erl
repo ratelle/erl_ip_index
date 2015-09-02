@@ -63,7 +63,7 @@ partition_global_lists([{Id, Mask} | Rest], Map) ->
 
 
 benchmark(BertFile, BlacklistFile, Runs, Runsize) ->
-    Index = build_full_index(BertFile, BlacklistFile, Threshold),
+    Index = build_full_index(BertFile, BlacklistFile),
     Total = benchmark_index(Index, Runs, Runsize),
     AverageRun = Total / Runs,
     AverageLookup = AverageRun / Runsize,
