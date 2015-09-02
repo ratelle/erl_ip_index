@@ -18,7 +18,7 @@
 
     test_build_new/1,
     test_build_orig/1,
-    rebuild_bert/3
+    rebuild_bert/4
 ]).
 
 generate_basic_mask() ->
@@ -330,13 +330,17 @@ build_mask_binary([], Bin) ->
 
 %% From text file, generate bin
 
-rebuild_bert(SourceFile, IpFile, DestinationFile) ->
+rebuild_bert(SourceFile, DestinationFile, IpFiles, StartingId) ->
     {ok, Bin} = file:read_file(SourceFile),
     [{_, Lists}] = binary_to_term(Bin),
     Converted = lists:map(fun convert_list/1, Lists),
-    {ok, IpBinary} = file:read_file(IpFile),
-    NewLists = [{10000, IpBinary}, {10001, IpBinary}, {10002, IpBinary}],
-    Result = Converted ++ NewLists,
+    NewLists = [get_list(IpFile) || IpFile <- IpFiles],
+    NewListsTuples = lists:zip(lists:seq(StartingId, StartingId + length(NewLists) - 1), NewLists),
+    Result = Converted ++ NewListsTuples,
     Term = [{iplists, Result}],
     Bert = term_to_binary(Term),
     file:write_file(DestinationFile, Bert).
+
+get_list(IpFile) ->
+    {ok, IpBinary} = file:read_file(IpFile),
+    IpBinary.
