@@ -1,18 +1,34 @@
 -module(erl_ip_index_debug).
 
 -export([
-    build_full_index/2
+    build_full_index/2,
+    test_range_results/5
 ]).
 
 -define(LOCAL_SPACE, 0).
 -define(GLOBAL_SPACE, 1).
+
+test_range_results(BertFile, BlacklistFile, OutputFile, Start, End) ->
+    Index = build_full_index(BertFile, BlacklistFile),
+    Results = run_range(Index, Start, End),
+    {ok, File} = file:open(OutputFile, [write, raw, delayed_write]),
+    lists:foreach(fun (Result) -> file:write(File, io_lib:format("~w~n", [Result])) end, Results),
+    file:close(File).
+
+run_range(Index, Start, End) ->
+    run_range(Index, Start, End, []).
+
+run_range(Index, Start, End, Results) when Start =< End ->
+    Result = erl_ip_index:lookup_subnet_nif(Index, Start, 0),
+    run_range(Index, Start+1, End, [Result | Results]);
+run_range(_, _, _, Results) ->
+    lists:reverse(Results).
 
 now_diff_us(Timestamp) ->
     timer:now_diff(os:timestamp(), Timestamp).
 
 build_full_index(BertFile, BlacklistFile) ->
     Lists = build_full_lists(BertFile, BlacklistFile),
-    %io:format("~p~n", [Lists]),
     Timestamp = os:timestamp(),
     Index = erl_ip_index:async_build_index(Lists),
     Time = now_diff_us(Timestamp) / 1000000,
