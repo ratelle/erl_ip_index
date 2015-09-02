@@ -1,13 +1,7 @@
 -module(erl_ip_index_debug).
 
 -export([
-    lookup_test/1,
-    lookup_test/2,
-    generate_basic_lists/2,
-    build_old_index/1,
-    test/3,
-    iplist_ids/2,
-    verify/4,
+    test_range_results/6,
     now_diff_us/1,
     rebuild_bert/4,
     build_full_index/3,
@@ -15,151 +9,29 @@
     benchmark/5
 ]).
 
-generate_basic_mask() ->
-    Mask = random:uniform(25) + 7,
-    A = random:uniform(256) - 1,
-    B = case Mask =< 8 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    C = case Mask =< 16 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    D = case Mask =< 24 of
-        true -> 0;
-        false -> random:uniform(256) - 1
-    end,
-    {A, B, C, D, Mask}.
+test_range_results(BertFile, BlacklistFile, OutputFile, Threshold, Start, End) ->
+    Index = build_full_index(BertFile, BlacklistFile, Threshold),
+    Results = run_range(Index, Start, End),
+    {ok, File} = file:open(OutputFile, [write, raw, delayed_write]),
+    lists:foreach(fun (Result) -> file:write(File, io_lib:format("~w~n", [Result])) end, Results),
+    file:close(File).
 
-generate_basic_ip() ->
-    A = random:uniform(256) - 1,
-    B = random:uniform(256) - 1,
-    C = random:uniform(256) - 1,
-    D = random:uniform(256) - 1,
-    %_X = random:uniform(256) - 1,
-    {A, B, C, D}.
+run_range(Index, Start, End) ->
+    run_range(Index, Start, End, []).
 
-now_diff_us(Timestamp) ->
-    timer:now_diff(os:timestamp(), Timestamp).
-
-lookup_test(Index) ->
-    [{A,B,C,D,_}] = generate_basic_masks(1),
-    io:format("Ip : ~p.~p.~p.~p~n",[A,B,C,D]),
-    lookup_test({A,B,C,D}, Index).
-
-lookup_test(Ip, Index) ->
-    Ip2 = erl_ip_index:parse_ip(Ip),
-    Timestamp1 = os:timestamp(),
-    Result = erl_ip_index:lookup_ip_nif(Index, Ip2),
-    Diff1 = now_diff_us(Timestamp1),
-    {Result, Diff1}.
-
-test(NLookup, NLists, NMasks) ->
-    Lookups = [generate_basic_ip() || _X <- lists:seq(1, NLookup)],
-    Lists = generate_basic_lists(NLists, NMasks),
-    TimestampBuild1 =  os:timestamp(),
-    OldIndex = build_old_index(Lists),
-    BuildDiff1 = now_diff_us(TimestampBuild1),
-    TimestampBuild2 =  os:timestamp(),
-    NewIndex = erl_ip_index:build_index(Lists),
-    BuildDiff2 = now_diff_us(TimestampBuild2),
-    PreparedLookups = [erl_ip_index:parse_ip(Ip) || Ip <- Lookups],
-    Timestamp1 = os:timestamp(),
-    Results1 = lists:map(fun (Ip) -> iplist_ids(OldIndex, Ip) end, Lookups),
-    Diff1 = now_diff_us(Timestamp1),
-    Timestamp2 = os:timestamp(),
-    Results2 = lists:map(fun (Ip) -> erl_ip_index:lookup_ip_nif(NewIndex, Ip) end, PreparedLookups),
-    Diff2 = now_diff_us(Timestamp2),
-    ets:delete(OldIndex),
-    {{Results1, BuildDiff1, Diff1}, {Results2, BuildDiff2, Diff2}}.
-
-verify(0, _, _, _) ->
-    ok;
-verify(NTest, NLookup, NLists, NMasks) ->
-    Lists = generate_basic_lists(NLists, NMasks),
-    OldIndex = build_old_index(Lists),
-    NewIndex = erl_ip_index:build_index(Lists),
-    case lookups(NLookup, OldIndex, NewIndex) of
-        ok -> verify(NTest-1, NLookup, NLists, NMasks);
-        Result -> {Lists, Result}
-    end.
-
-lookups(0, _, _) ->
-    ok;
-lookups(NLookup, OldIndex, NewIndex) ->
-    IP = generate_basic_ip(),
-    Results1 = iplist_ids(OldIndex, IP),
-    Results2 = erl_ip_index:lookup_ip(NewIndex, IP),
-    case Results1 == Results2 of
-        true -> lookups(NLookup-1, OldIndex, NewIndex);
-        false -> {IP, Results1, Results2}
-    end.
-
-generate_basic_lists(NLists, NMasks) ->
-    [{0, Id, generate_basic_masks(NMasks)} || Id <- lists:seq(1, NLists)] ++
-        [{1, Id, generate_basic_masks(NMasks)} || Id <- lists:seq(1, NLists)].
-
-generate_basic_masks(NMasks) ->
-    lists:sort([generate_basic_mask() || _N <- lists:seq(1, NMasks)]).
-
-build_old_index(Lists) ->
-    Tid = ets:new(temp, [private, bag]),
-    lists:foreach(fun (List) -> add_list(Tid, List) end, Lists),
-    convert(Tid, ets:new(final, [private, set, {read_concurrency, true}]), ets:first(Tid)).
-
-convert(_, Tid, '$end_of_table') ->
-    Tid;
-convert(OldTid, NewTid, Key) ->
-    ets:insert(NewTid, {Key, ets:lookup_element(OldTid, Key, 2)}),
-    convert(OldTid, NewTid, ets:next(OldTid, Key)).
-
-add_list(Tid, {Space, Id, IpMasks}) ->
-    lists:foreach(fun (Mask) -> add_mask(Tid, {Space, Id}, Mask) end, IpMasks).
-
-add_mask(Tid, Id, {A, _, _, _, 8}) ->
-    ets:insert(Tid, {{A}, Id});
-add_mask(Tid, Id, {A, B, _, _, 16}) ->
-    ets:insert(Tid, {{A, B}, Id});
-add_mask(Tid, Id, {A, B, C, _, 24}) ->
-    ets:insert(Tid, {{A, B, C}, Id});
-add_mask(Tid, Id, {A, B, C, D, 32}) ->
-    ets:insert(Tid, {{A, B, C, D}, Id}).
-
-iplist_ids(Tid, Ip) ->
-    lists:umerge(iplist_ids_int(Tid, Ip)).
-
-iplist_ids_int(Tid, {A, B, C, _D} = Ip) when is_tuple(Ip) ->
-    Results = case ets:lookup(Tid, Ip) of
-                  [] -> [];
-                  [{_, R}] -> R
-              end,
-    [Results | iplist_ids_int(Tid, {A, B, C})];
-iplist_ids_int(Tid, {A, B, _C} = Ip) when is_tuple(Ip) ->
-    Results = case ets:lookup(Tid, Ip) of
-                  [] -> [];
-                  [{_, R}] -> R
-              end,
-    [Results | iplist_ids_int(Tid, {A, B})];
-iplist_ids_int(Tid, {A, _B} = Ip) when is_tuple(Ip) ->
-    Results = case ets:lookup(Tid, Ip) of
-                  [] -> [];
-                  [{_, R}] -> R
-              end,
-
-    [Results | iplist_ids_int(Tid, {A})];
-iplist_ids_int(Tid, {_A} = Ip) when is_tuple(Ip) ->
-    Results = case ets:lookup(Tid, Ip) of
-                  [] -> [];
-                  [{_, R}] -> R
-              end,
-    [Results].
-
+run_range(Index, Start, End, Results) when Start =< End ->
+    Result = erl_ip_index:lookup_subnet_nif(Index, Start, 32),
+    run_range(Index, Start+1, End, [Result | Results]);
+run_range(_, _, _, Results) ->
+    lists:reverse(Results).
 
 %% Benchmarking and testing
 
 -define(LOCAL_SPACE,0).
 -define(GLOBAL_SPACE,1).
+
+now_diff_us(Timestamp) ->
+    timer:now_diff(os:timestamp(), Timestamp).
 
 benchmark(BertFile, BlacklistFile, Threshold, Runs, Runsize) ->
     Index = build_full_index(BertFile, BlacklistFile, Threshold),
