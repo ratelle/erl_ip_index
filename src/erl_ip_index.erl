@@ -35,7 +35,10 @@ build_index(IpLists) ->
     build_index_nif(erl_ip_index_parser:parse_ip_lists(IpLists)).
 
 async_build_index(IpLists) ->
-    {Ref, Tid} = async_start_build_index_nif(erl_ip_index_parser:parse_ip_lists(IpLists)),
+    Timestamp = os:timestamp(),
+    Parsed = erl_ip_index_parser:parse_ip_lists(IpLists),
+    io:format("Parsed in ~p us~n",[timer:now_diff(os:timestamp(), Timestamp)]),
+    {Ref, Tid} = async_start_build_index_nif(Parsed),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),
