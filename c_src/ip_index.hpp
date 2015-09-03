@@ -4,10 +4,12 @@
 #include <memory>
 
 extern "C" {
+#include "ewok.h"
 #include "indexed_ewah.h"
 }
 
-#define DEFAULT_LARGE_LIST_THRESHOLD 1000000
+enum { DEFAULT_LARGE_LIST_THRESHOLD = 1000000,
+       OR_MAP_THRESHOLD = 2 };
 
 typedef uint32_t Ipv4Ip;
 typedef uint64_t Ipv4ListId;
@@ -61,6 +63,20 @@ public:
         return indexed_ewah_get(bitmap.get(), ip);
     }
 
+    // construct OR of all maps for first-stage filtering
+    Ipv4Map(std::vector<Ipv4Map> &maps) : id(0), bitmap(new indexed_ewah_map()), finalized(false) {
+	struct ewah_bitmap *a = ewah_new();
+	for (Ipv4Map &map : maps) {
+	    struct ewah_bitmap *b = ewah_new();
+	    ewah_or(map.bitmap.get()->map, a, b);
+	    ewah_free(a);
+	    a = b;
+	}
+	bitmap.get()->map = a;
+	ewah_build_index(bitmap.get());
+	finalized = true;
+    }
+
 private:
     std::unique_ptr<indexed_ewah_map, free_delete> bitmap;
     bool finalized;
@@ -101,13 +117,16 @@ public:
             }
         }
 
+	or_map.reset((maps.size() > OR_MAP_THRESHOLD) ? new Ipv4Map(maps) : 0);
+
         tree = Ipv4Tree(tree_elems);
     }
 
     std::vector<Ipv4ListId> lookup(Ipv4Ip ip, uint8_t mask) {
         std::vector<Ipv4ListId> result = tree.lookup(ip, 32 - mask);
 
-        if (mask == 32) {
+        if (mask == 32 &&
+	    (!or_map.get() || or_map.get()->lookup(ip))) {
             for (Ipv4Map &map : maps) {
                 if (map.lookup(ip)) {
                     result.emplace_back(map.id);
@@ -122,5 +141,6 @@ private:
 
     Ipv4Tree tree;
     std::vector<Ipv4Map> maps;
+    std::unique_ptr<Ipv4Map> or_map;
 
 };
