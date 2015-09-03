@@ -4,6 +4,7 @@
 #include <memory>
 
 extern "C" {
+#include "ewok.h"
 #include "indexed_ewah.h"
 }
 
@@ -32,38 +33,86 @@ struct free_delete
 {
     void operator()(void* x) {
 	indexed_ewah_map *map = static_cast<indexed_ewah_map *>(x);
-	ewah_free(map->map);
-	delete map;
+        delete map;
     }
 };
+
+static uint32_t ip_at(uint8_t *p, size_t i)
+{
+    return (p[i+0] << 24) + (p[i+1] << 16) + (p[i+2] << 8) + p[i+3];
+}
+static int compare_u16(const void *a_, const void *b_)
+{
+    const uint16_t *a = (const uint16_t *)a_, *b = (const uint16_t *)b_;
+    return *a - *b;
+}
 
 class Ipv4Map {
 public:
     Ipv4ListId id;
 
-    Ipv4Map(Ipv4ListId i) : id(i), bitmap(new indexed_ewah_map()), finalized(false) {
-	assert(0 == bitmap.get()->map);
-	bitmap.get()->map = ewah_new();
-    }
+    Ipv4Map(Ipv4List list) : id(list.id), bitmap(new indexed_ewah_map()) {
+        struct indexed_ewah_map *bm = bitmap.get();
+        memset(bm, 0, sizeof(*bm));
+        for (size_t i = 0; i < list.length; i += 5) {
+            uint32_t ip = ip_at((uint8_t *)list.data, i);
+            uint8_t mask = list.data[i+4];
+            assert(32 == mask);
+            if (i+4096*5+4 < list.length &&
+                ((ip&~0xffff) == (ip_at((uint8_t *)list.data, i+4096*5)&~0xffff))) {
+                uint16_t base = ip>>16;
+                bm->first_level[base] = ++bitmap->n_maps;
+                bm->maps = (struct second_level_map *)realloc(bm->maps, sizeof(*bm->maps)*bm->n_maps);
+                assert(bm->maps);
+                bm->maps[bm->n_maps-1].type = second_level_map::SLM_COMPRESSED;
+                ewah_bitmap *map = ewah_new();
+                assert(map);
+                bm->maps[bm->n_maps-1].compressed_bitmap = map;
+                while (i < list.length && (ip>>16) == base) {
+                    ip = ip_at((uint8_t *)list.data, i);
+                    assert(32 == list.data[i+4]);
+                    ewah_set(map, ip);
+                    i += 5;
+                }
+            } else {
+                uint16_t base = ip>>16;
+                bm->first_level[base] = bm->n_maps++;
+                bm->maps = (second_level_map *)realloc(bm->maps, sizeof(*bm->maps)*bm->n_maps);
+                assert(bm->maps);
+                bm->maps[bm->n_maps-1].type = second_level_map::SLM_SORTED_ARRAY;
+                uint16_t *p = (uint16_t *)malloc(4096*sizeof(*p));
+                assert(p);
+                bm->maps[bm->n_maps-1].sorted_array.p = p;
+                uint16_t n = 0;
+                while (i < list.length && (ip>>16) == base) {
+                    ip = ip_at((uint8_t *)list.data, i);
+                    assert(32 == list.data[i+4]);
+                    *p++ = ip;
+                    i += 5;
+                    ++n;
+                }
+                bm->maps[bm->n_maps-1].sorted_array.n = n;
+                bm->maps[bm->n_maps-1].sorted_array.p = (uint16_t *)realloc(p, n*sizeof(*p));
+            }
 
-    void add_ip(Ipv4Ip ip) {
-        if (!finalized) {
-            ewah_set(bitmap.get()->map, ip);
         }
     }
 
-    void finalize(void) {
-        finalized = true;
-        ewah_build_index(bitmap.get());
-    }
-
     bool lookup(Ipv4Ip ip) {
-        return indexed_ewah_get(bitmap.get(), ip);
+        struct indexed_ewah_map *bm = bitmap.get();
+        uint16_t fl = bm->first_level[ip>>16];
+        if (!fl)
+            return false;
+        ip &= ~0xffff;
+        struct second_level_map *slm = &bm->maps[fl-1];
+        if (slm->type == second_level_map::SLM_COMPRESSED)
+            return ewah_get(slm->compressed_bitmap, ip);
+        uint16_t ips = ip;
+        return NULL != bsearch(&ips, slm->sorted_array.p, slm->sorted_array.n, sizeof (*slm->sorted_array.p), compare_u16);
     }
 
 private:
     std::unique_ptr<indexed_ewah_map, free_delete> bitmap;
-    bool finalized;
 };
 
 class Ipv4Index {
@@ -75,27 +124,18 @@ public:
             bool large_list = list.length >= LARGE_LIST_THRESOLD;
 
             if (large_list) {
-                maps.emplace_back(Ipv4Map(list.id));
+                maps.emplace_back(Ipv4Map(list));
             }
             else {
                 tree_elems.reserve(tree_elems.size() + list.length / 5);
-            }
 
-            for (unsigned i = 0; i < list.length; i += 5) {
-                uint32_t ip = (list.data[i+0] << 24) + (list.data[i+1] << 16) + (list.data[i+2] << 8) + list.data[i+3];
-                uint8_t mask = list.data[i+4];
+                for (unsigned i = 0; i < list.length; i += 5) {
+                    uint32_t ip = (list.data[i+0] << 24) + (list.data[i+1] << 16) + (list.data[i+2] << 8) + list.data[i+3];
+                    uint8_t mask = list.data[i+4];
 
-                if (large_list && mask == 32) {
-                    maps[maps.size()-1].add_ip(ip);
-                }
-                else {
                     uint8_t offset = 32 - mask;
                     tree_elems.emplace_back(Ipv4TreeElem(offset, ip, list.id));
                 }
-            }
-
-            if (large_list) {
-                maps[maps.size()-1].finalize();
             }
         }
 

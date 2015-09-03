@@ -44,7 +44,7 @@ static inline void buffer_grow(struct ewah_bitmap *self, size_t new_size)
 		return;
 
 	self->alloc_size = new_size;
-	self->buffer = ewah_realloc(self->buffer, self->alloc_size * sizeof(eword_t));
+	self->buffer = (eword_t *)ewah_realloc(self->buffer, self->alloc_size * sizeof(eword_t));
 	self->rlw = self->buffer + (rlw_offset / sizeof(size_t));
 }
 
@@ -288,11 +288,11 @@ struct ewah_bitmap *ewah_new(void)
 {
 	struct ewah_bitmap *bitmap;
 
-	bitmap = ewah_malloc(sizeof(struct ewah_bitmap));
+        bitmap = (struct ewah_bitmap *)ewah_malloc(sizeof(struct ewah_bitmap));
 	if (bitmap == NULL)
 		return NULL;
 
-	bitmap->buffer = ewah_malloc(32 * sizeof(eword_t));
+	bitmap->buffer = (eword_t *)ewah_malloc(32 * sizeof(eword_t));
 	bitmap->alloc_size = 32;
 
 	ewah_clear(bitmap);
