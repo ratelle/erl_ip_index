@@ -34,7 +34,8 @@ run_random(_Index, 0, Bin) ->
     Bin;
 run_random(Index, Amount, Bin) ->
     Ip = random:uniform(?IP_LIMIT) - 1,
-    Results = lists:sort(erl_ip_index:lookup_subnet_nif(Index, Ip, 32)),
+    Mask = case random:uniform(2) of 1 -> 32; 2 -> 24 end,
+    Results = lists:sort(erl_ip_index:lookup_subnet_nif(Index, Ip, Mask)),
     NewBin = add_results(Results, Bin),
     run_random(Index, Amount-1, NewBin).
 
