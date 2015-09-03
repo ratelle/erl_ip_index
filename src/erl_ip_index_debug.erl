@@ -19,10 +19,10 @@ test_random_results([BertFile, BlacklistFile, OutputFile, Amount, Seed1, Seed2, 
     test_random_results(BertFile, BlacklistFile, OutputFile, list_to_integer(Amount), list_to_integer(Seed1), list_to_integer(Seed2), list_to_integer(Seed3)).
 
 test_random_results(BertFile, BlacklistFile, OutputFile, Amount, Seed1, Seed2, Seed3) ->
-    {ok, File} = file:open(OutputFile, [write, raw]),
     Index = build_full_index(BertFile, BlacklistFile),
     random:seed(Seed1, Seed2, Seed3),
     Bin = run_random(Index, Amount),
+    {ok, File} = file:open(OutputFile, [write, raw]),
     file:write(File, Bin),
     file:close(File).
 
