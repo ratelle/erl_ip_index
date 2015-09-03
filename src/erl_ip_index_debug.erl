@@ -41,11 +41,7 @@ now_diff_us(Timestamp) ->
 
 build_full_index(BertFile, BlacklistFile) ->
     Lists = build_full_lists(BertFile, BlacklistFile),
-    Timestamp = os:timestamp(),
-    Index = erl_ip_index:async_build_index(Lists),
-    Time = now_diff_us(Timestamp) / 1000000,
-    io:format("Index built in ~p seconds~n", [Time]),
-    Index.
+    erl_ip_index:async_build_index(Lists).
 
 build_full_lists(BertFile, BlacklistFile) ->
     BlacklistedLists = build_blacklisted_lists(BlacklistFile),
