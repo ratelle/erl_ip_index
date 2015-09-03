@@ -88,10 +88,10 @@ struct rlw_iterator {
 
 	struct {
 		const eword_t *word;
-		int literal_words;
-		int running_len;
-		int literal_word_offset;
-		int running_bit;
+                unsigned literal_words;
+                unsigned running_len;
+                unsigned literal_word_offset;
+                unsigned running_bit;
 	} rlw;
 };
 
