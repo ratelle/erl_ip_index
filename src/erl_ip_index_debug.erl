@@ -14,20 +14,27 @@ test_range_results([BertFile, BlacklistFile, OutputFile, Start, End]) ->
     test_range_results(BertFile, BlacklistFile, OutputFile, list_to_integer(Start), list_to_integer(End)).
 
 test_range_results(BertFile, BlacklistFile, OutputFile, Start, End) ->
+    {ok, File} = file:open(OutputFile, [write, raw]),
     Index = build_full_index(BertFile, BlacklistFile),
-    Results = run_range(Index, Start, End),
-    {ok, File} = file:open(OutputFile, [write, raw, delayed_write]),
-    lists:foreach(fun (Result) -> file:write(File, io_lib:format("~w~n", [Result])) end, Results),
+    Bin = run_range(Index, Start, End),
+    file:write(File, Bin),
     file:close(File).
 
 run_range(Index, Start, End) ->
-    run_range(Index, Start, End, []).
+    run_range(Index, Start, End, <<>>).
 
-run_range(Index, Start, End, Results) when Start < End ->
-    Result = erl_ip_index:lookup_subnet_nif(Index, Start, 0),
-    run_range(Index, Start+1, End, [Result | Results]);
-run_range(_, _, _, Results) ->
-    lists:reverse(Results).
+run_range(Index, Start, End, Bin) when Start < End ->
+    Results = erl_ip_index:lookup_subnet_nif(Index, Start, 0),
+    NewBin = add_results(Results, Bin),
+    run_range(Index, Start+1, End, NewBin);
+run_range(_, _, _, Bin) ->
+    Bin.
+
+add_results([{IdSpace, Id} | Rest], Bin) ->
+    Combined = integer_to_binary(IdSpace bsl 32 + Id),
+    add_results(Rest, <<Bin/binary, Combined/binary, " ">>);
+add_results([], Bin) ->
+    <<Bin/binary, "\n">>.
 
 now_diff_us(Timestamp) ->
     timer:now_diff(os:timestamp(), Timestamp).
