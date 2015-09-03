@@ -7,7 +7,8 @@
     async_build_index/2,
     lookup_ip/2,
     lookup_subnet/3,
-    lookup_subnet_nif/3
+    lookup_subnet_nif/3,
+    index_info/1
 ]).
 
 -on_load(init/0).
@@ -58,6 +59,9 @@ parse_ip(Ip) when is_binary(Ip) ->
     parse_ip(split_ip(Ip));
 parse_ip(Ip) when is_list(Ip) ->
     parse_ip(list_to_binary(Ip)).
+
+index_info(_Index) ->
+    {error, ip_index_nif_not_loaded}.
 
 lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
     lookup_subnet_nif(Index, parse_ip(Ip), Mask).

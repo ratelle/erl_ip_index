@@ -82,21 +82,28 @@ private:
     bool finalized;
 };
 
+struct Ipv4IndexInfo {
+    bool or_map;
+    unsigned large_lists;
+    unsigned large_list_threshold;
+};
+
 class Ipv4Index {
 public:
     Ipv4Index(std::vector<Ipv4List>& lists) : Ipv4Index(lists, DEFAULT_LARGE_LIST_THRESHOLD) {}
 
-    Ipv4Index(std::vector<Ipv4List>& lists, unsigned large_list_threshold) {
+    Ipv4Index(std::vector<Ipv4List>& lists, unsigned large_list_threshold) : threshold(large_list_threshold) {
         std::vector<Ipv4TreeElem> tree_elems;
 
         for (Ipv4List &list : lists) {
-            bool large_list = list.length / 5 >= large_list_threshold;
+            unsigned length = list.length / 5;
+            bool large_list = length >= threshold;
 
             if (large_list) {
                 maps.emplace_back(list.id);
             }
             else {
-                tree_elems.reserve(tree_elems.size() + list.length / 5);
+                tree_elems.reserve(tree_elems.size() + length);
             }
 
             for (unsigned i = 0; i < list.length; i += 5) {
@@ -117,7 +124,7 @@ public:
             }
         }
 
-	or_map.reset((maps.size() > OR_MAP_THRESHOLD) ? new Ipv4Map(maps) : 0);
+	or_map.reset((maps.size() > OR_MAP_THRESHOLD) ? new Ipv4Map(maps) : nullptr);
 
         tree = Ipv4Tree(tree_elems);
     }
@@ -137,10 +144,19 @@ public:
         return result;
     }
 
+    Ipv4IndexInfo info() {
+        Ipv4IndexInfo info;
+        info.or_map = or_map.get() != nullptr;
+        info.large_lists = maps.size();
+        info.large_list_threshold = threshold;
+        return info;
+    }
+
 private:
 
     Ipv4Tree tree;
     std::vector<Ipv4Map> maps;
     std::unique_ptr<Ipv4Map> or_map;
+    unsigned threshold;
 
 };
