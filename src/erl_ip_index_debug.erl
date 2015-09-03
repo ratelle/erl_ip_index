@@ -4,11 +4,38 @@
     build_full_index/2,
     test_range_results/1,
     test_range_results/5,
+    test_random_results/1,
+    test_random_results/7,
     benchmark/4
 ]).
 
 -define(LOCAL_SPACE, 0).
 -define(GLOBAL_SPACE, 1).
+
+-define(IP_LIMIT, (1 bsl 32)).
+-define(RANDOM_THRESHOLD, 150000).
+
+test_random_results([BertFile, BlacklistFile, OutputFile, Amount, Seed1, Seed2, Seed3]) ->
+    test_random_results(BertFile, BlacklistFile, OutputFile, list_to_integer(Amount), list_to_integer(Seed1), list_to_integer(Seed2), list_to_integer(Seed3)).
+
+test_random_results(BertFile, BlacklistFile, OutputFile, Amount, Seed1, Seed2, Seed3) ->
+    {ok, File} = file:open(OutputFile, [write, raw]),
+    Index = build_full_index(BertFile, BlacklistFile),
+    random:seed(Seed1, Seed2, Seed3),
+    Bin = run_random(Index, Amount),
+    file:write(File, Bin),
+    file:close(File).
+
+run_random(Index, Amount) ->
+    run_random(Index, Amount, <<>>).
+
+run_random(_Index, 0, Bin) ->
+    Bin;
+run_random(Index, Amount, Bin) ->
+    Ip = random:uniform(?IP_LIMIT) - 1,
+    Results = erl_ip_index:lookup_subnet_nif(Index, Ip, 0),
+    NewBin = add_results(Results, Bin),
+    run_random(Index, Amount-1, NewBin).
 
 test_range_results([BertFile, BlacklistFile, OutputFile, Start, End]) ->
     test_range_results(BertFile, BlacklistFile, OutputFile, list_to_integer(Start), list_to_integer(End)).
@@ -32,7 +59,7 @@ run_range(_, _, _, Bin) ->
 
 add_results([{IdSpace, Id} | Rest], Bin) ->
     Combined = integer_to_binary(IdSpace bsl 32 + Id),
-    add_results(Rest, <<Bin/binary, Combined/binary, " ">>);
+    add_results(Rest, <<Bin/binary, Combined/binary, ",">>);
 add_results([], Bin) ->
     <<Bin/binary, "\n">>.
 
