@@ -33,7 +33,8 @@ run_random(_Index, 0, Bin) ->
     Bin;
 run_random(Index, Amount, Bin) ->
     Ip = random:uniform(?IP_LIMIT) - 1,
-    Results = erl_ip_index:lookup_subnet_nif(Index, Ip, 0),
+    Mask = case random:uniform(2) of 1 -> 0; 2 -> 8 end,
+    Results = erl_ip_index:lookup_subnet_nif(Index, Ip, Mask),
     NewBin = add_results(Results, Bin),
     run_random(Index, Amount-1, NewBin).
 
