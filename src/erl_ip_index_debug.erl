@@ -1,13 +1,18 @@
 -module(erl_ip_index_debug).
 
 -export([
+    test_range_results/1,
     test_range_results/6,
     now_diff_us/1,
     rebuild_bert/4,
     build_full_index/3,
     build_full_lists/2,
+    benchmark_ips/4,
     benchmark/5
 ]).
+
+test_range_results([BertFile, BlacklistFile, OutputFile, Start, End]) ->
+    test_range_results(BertFile, BlacklistFile, OutputFile, 1000000, list_to_integer(Start), list_to_integer(End)).
 
 test_range_results(BertFile, BlacklistFile, OutputFile, Threshold, Start, End) ->
     Index = build_full_index(BertFile, BlacklistFile, Threshold),
@@ -19,7 +24,7 @@ test_range_results(BertFile, BlacklistFile, OutputFile, Threshold, Start, End) -
 run_range(Index, Start, End) ->
     run_range(Index, Start, End, []).
 
-run_range(Index, Start, End, Results) when Start =< End ->
+run_range(Index, Start, End, Results) when Start < End ->
     Result = erl_ip_index:lookup_subnet_nif(Index, Start, 32),
     run_range(Index, Start+1, End, [Result | Results]);
 run_range(_, _, _, Results) ->
@@ -32,6 +37,27 @@ run_range(_, _, _, Results) ->
 
 now_diff_us(Timestamp) ->
     timer:now_diff(os:timestamp(), Timestamp).
+
+load_ips(File) ->
+    {ok, Content} = file:read_file(File),
+    load_ips(Content, []).
+
+load_ips(<<Ip1, Ip2, Ip3, Ip4, Rest/binary>>, Ips) ->
+    Ip = (Ip1 bsl 24) + (Ip2 bsl 16) + (Ip3 bsl 8) + Ip4,
+    load_ips(Rest, [Ip | Ips]);
+load_ips(<<>>, Ips) ->
+    Ips.
+
+benchmark_ips(BertFile, BlacklistFile, Threshold, IpFile) ->
+    Index = build_full_index(BertFile, BlacklistFile, Threshold),
+    Ips = load_ips(IpFile),
+    io:format("Starting run~n"),
+    erlang:garbage_collect(),
+    Timestamp = os:timestamp(),
+    benchmark_run_ips(Index, Ips),
+    Time = now_diff_us(Timestamp),
+    AverageLookup = Time / length(Ips),
+    io:format("Average lookup took ~p microseconds~n",[AverageLookup]).
 
 benchmark(BertFile, BlacklistFile, Threshold, Runs, Runsize) ->
     Index = build_full_index(BertFile, BlacklistFile, Threshold),
@@ -82,11 +108,7 @@ benchmark_run_ips(_, []) ->
 
 build_full_index(BertFile, BlacklistFile, Threshold) ->
     Lists = build_full_lists(BertFile, BlacklistFile),
-    Timestamp = os:timestamp(),
-    Index = erl_ip_index:async_build_index(Lists, Threshold),
-    Time = now_diff_us(Timestamp) / 1000000,
-    io:format("Index built in ~p seconds~n", [Time]),
-    Index.
+    erl_ip_index:async_build_index(Lists, Threshold).
 
 build_full_lists(BertFile, BlacklistFile) ->
     BlacklistedLists = build_blacklisted_lists(BlacklistFile),
