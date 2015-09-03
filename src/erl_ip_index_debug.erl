@@ -2,12 +2,16 @@
 
 -export([
     build_full_index/2,
+    test_range_results/1,
     test_range_results/5,
     benchmark/4
 ]).
 
 -define(LOCAL_SPACE, 0).
 -define(GLOBAL_SPACE, 1).
+
+test_range_results([BertFile, BlacklistFile, OutputFile, Start, End]) ->
+    test_range_results(BertFile, BlacklistFile, OutputFile, list_to_integer(Start), list_to_integer(End)).
 
 test_range_results(BertFile, BlacklistFile, OutputFile, Start, End) ->
     Index = build_full_index(BertFile, BlacklistFile),
@@ -19,7 +23,7 @@ test_range_results(BertFile, BlacklistFile, OutputFile, Start, End) ->
 run_range(Index, Start, End) ->
     run_range(Index, Start, End, []).
 
-run_range(Index, Start, End, Results) when Start =< End ->
+run_range(Index, Start, End, Results) when Start < End ->
     Result = erl_ip_index:lookup_subnet_nif(Index, Start, 0),
     run_range(Index, Start+1, End, [Result | Results]);
 run_range(_, _, _, Results) ->
