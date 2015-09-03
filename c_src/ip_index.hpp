@@ -64,14 +64,16 @@ public:
                 bm->first_level[base] = ++bitmap->n_maps;
                 bm->maps = (struct second_level_map *)realloc(bm->maps, sizeof(*bm->maps)*bm->n_maps);
                 assert(bm->maps);
-                bm->maps[bm->n_maps-1].type = second_level_map::SLM_COMPRESSED;
-                ewah_bitmap *map = ewah_new();
+                bm->maps[bm->n_maps-1].type = second_level_map::SLM_BITMAP;
+                uint64_t *map = (uint64_t *)malloc(8192);
                 assert(map);
-                bm->maps[bm->n_maps-1].compressed_bitmap = map;
+                memset(map, 0, 8192);
+                bm->maps[bm->n_maps-1].bitmap = map;
                 while (i < list.length && (ip>>16) == base) {
                     ip = ip_at((uint8_t *)list.data, i);
                     assert(32 == list.data[i+4]);
-                    ewah_set(map, ip);
+                    uint16_t low = ip &~ 0xffff;
+                    map[low>>6] |= 1L<<(low&63);
                     i += 5;
                 }
             } else {
@@ -105,8 +107,8 @@ public:
             return false;
         ip &= ~0xffff;
         struct second_level_map *slm = &bm->maps[fl-1];
-        if (slm->type == second_level_map::SLM_COMPRESSED)
-            return ewah_get(slm->compressed_bitmap, ip);
+        if (slm->type == second_level_map::SLM_BITMAP)
+            return slm->bitmap[(ip>>6)&1023] & (1L<<(ip&63));
         uint16_t ips = ip;
         return NULL != bsearch(&ips, slm->sorted_array.p, slm->sorted_array.n, sizeof (*slm->sorted_array.p), compare_u16);
     }

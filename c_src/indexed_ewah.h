@@ -7,13 +7,13 @@
 /* Right now we do this with too many allocations, but once we replace
  * ewok we can do this with glorious slabs. */
 struct second_level_map {
-    enum { SLM_SORTED_ARRAY, SLM_COMPRESSED } type;
+    enum { SLM_SORTED_ARRAY, SLM_BITMAP } type;
     union {
         struct {
             uint16_t *p;
             size_t n;
         } sorted_array;
-        struct ewah_bitmap *compressed_bitmap;
+        uint64_t *bitmap;
     };
 };
 
