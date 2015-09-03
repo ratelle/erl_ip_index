@@ -22,7 +22,17 @@ static void test(uint8_t *data, size_t size, uint32_t ip, uint8_t mask)
     Ipv4Index *index = new Ipv4Index(lists);
     std::vector<uint64_t> results = index->lookup(ip, (uint8_t)mask);
     for (auto it = results.begin(); it != results.end(); ++it)
-	cout << hex << *it << endl;
+        cout << hex << *it << endl;
+
+    struct timeval start_tv, end_tv;
+    gettimeofday(&start_tv, NULL);
+    size_t n = 1<<20;
+    for (size_t i = 0; i < n; ++i)
+        index->lookup(rand(), 32);
+    gettimeofday(&end_tv, NULL);
+    size_t a = start_tv.tv_sec * 1000000 + start_tv.tv_usec;
+    size_t b = end_tv.tv_sec * 1000000 + end_tv.tv_usec;
+    printf("%lu ms over %lu -- %f/IP\n", b-a, n, (b-a)/(double)n);
     delete index;
 }
 
