@@ -1,6 +1,7 @@
 -module(erl_ip_index_parser).
 
--export([parse_ip_lists/1]).
+-export([parse_ip_lists/1,
+         parse_ip_mask/1]).
 
 -compile([native]).
 
