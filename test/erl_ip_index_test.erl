@@ -23,17 +23,17 @@ a_list() ->
 	    4,3,2,1,32>>}].
 
 basic_build_index_presence_test() ->
-    Index = erl_ip_index:build_index(a_list()),
+    Index = erl_ip_index:build_index(a_list(), 3),
     ?assertEqual([{0,0},{1,1}], erl_ip_index:lookup_ip(Index, "4.3.2.1")).
 
 basic_build_index_absence_test() ->
-    Index = erl_ip_index:build_index(a_list()),
+    Index = erl_ip_index:build_index(a_list(), 3),
     ?assertEqual([], erl_ip_index:lookup_ip(Index, "4.3.2.0")).
 
 basic_async_build_index_presence_test() ->
-    Index = erl_ip_index:async_build_index(a_list()),
+    Index = erl_ip_index:async_build_index(a_list(), 3),
     ?assertEqual([{0,0},{1,1}], erl_ip_index:lookup_ip(Index, "4.3.2.1")).
 
 basic_async_build_index_absence_test() ->
-    Index = erl_ip_index:async_build_index(a_list()),
+    Index = erl_ip_index:async_build_index(a_list(), 3),
     ?assertEqual([], erl_ip_index:lookup_ip(Index, "4.3.2.0")).
