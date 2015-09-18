@@ -212,9 +212,7 @@ parse_ip_mask(IpMask) when is_list(IpMask) ->
     parse_ip_mask(list_to_binary(IpMask)).
 
 split_ip(Ip) when is_binary(Ip) ->
-    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]);
-split_ip(Ip) when is_list(Ip) ->
-    split_ip(list_to_binary(Ip)).
+    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]).
 
 build_mask_binary([{A, B, C, D, E} | Rest], Bin) ->
     build_mask_binary(Rest, <<Bin/binary, A, B, C, D, E>>);

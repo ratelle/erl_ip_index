@@ -56,9 +56,7 @@ async_build_index(IpLists, LargeListThreshold) ->
     end.
 
 split_ip(Ip) when is_binary(Ip) ->
-    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]);
-split_ip(Ip) when is_list(Ip) ->
-    split_ip(list_to_binary(Ip)).
+    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]).
 
 parse_ip({A, B, C, D}) when is_integer(A), A >= 0, A =< 255,
                             is_integer(B), B >= 0, B =< 255,
