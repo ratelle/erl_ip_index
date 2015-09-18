@@ -38,7 +38,10 @@ priv_dir() ->
 
 -spec build_index(ip_lists(), pos_integer()) -> idx_resource().
 build_index(IpLists, LargeListThreshold) ->
-    build_index_nif(IpLists, LargeListThreshold).
+    case build_index_nif(IpLists, LargeListThreshold) of
+        undefined -> error(badarg);
+        Result -> Result
+    end.
 
 -spec async_build_index(ip_lists(), pos_integer()) -> idx_resource().
 async_build_index(IpLists, LargeListThreshold) ->

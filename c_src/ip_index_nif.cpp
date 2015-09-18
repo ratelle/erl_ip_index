@@ -193,9 +193,12 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     uint32_t ip;
     uint32_t mask;
 
-    enif_get_resource(env, argv[0], ip_index_type, &pointer);
-    enif_get_uint(env, argv[1], &ip);
-    enif_get_uint(env, argv[2], &mask);
+    if (!enif_get_resource(env, argv[0], ip_index_type, &pointer))
+        return enif_make_badarg(env);
+    if (!enif_get_uint(env, argv[1], &ip))
+        return enif_make_badarg(env);
+    if (!enif_get_uint(env, argv[2], &mask))
+        return enif_make_badarg(env);
 
     wrapper = static_cast<void**>(pointer);
 
