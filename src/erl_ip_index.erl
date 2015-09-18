@@ -13,6 +13,11 @@
 
 -on_load(init/0).
 
+-type ip_lists() :: list({integer(), integer(), binary()}).
+-type ip_address() :: binary() | string() | {0..255,0..255,0..255,0..255}.
+-type mask() :: 8..32.
+-type idx_resource() :: binary().
+
 -spec init() -> ok.
 init() ->
     SoName = filename:join(priv_dir(), "ip_index_nif"),
@@ -31,9 +36,11 @@ priv_dir() ->
         Dir -> Dir
     end.
 
+-spec build_index(ip_lists(), pos_integer()) -> idx_resource().
 build_index(IpLists, LargeListThreshold) ->
     build_index_nif(IpLists, LargeListThreshold).
 
+-spec async_build_index(ip_lists(), pos_integer()) -> idx_resource().
 async_build_index(IpLists, LargeListThreshold) ->
     {Ref, Tid} = async_start_build_index_nif(IpLists, LargeListThreshold),
     receive
@@ -60,23 +67,26 @@ parse_ip(Ip) when is_binary(Ip) ->
 parse_ip(Ip) when is_list(Ip) ->
     parse_ip(list_to_binary(Ip)).
 
-index_info(_Index) ->
-    {error, ip_index_nif_not_loaded}.
-
+-spec lookup_subnet(idx_resource(), ip_address(), mask()) -> list({integer(),integer()}).
 lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
     lookup_subnet_nif(Index, parse_ip(Ip), Mask).
 
+-spec lookup_ip(idx_resource(), ip_address()) -> list({integer(),integer()}).
 lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
+-spec index_info(idx_resource()) -> any().
+index_info(_Index) ->
+    erlang:nif_error(ip_index_nif_not_loaded).
+
 build_index_nif(_IpLists, _LargeListThreshold) ->
-    {error, ip_index_nif_not_loaded}.
+    erlang:nif_error(ip_index_nif_not_loaded).
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->
-    {error, ip_index_nif_not_loaded}.
+    erlang:nif_error(ip_index_nif_not_loaded).
 
 async_start_build_index_nif(_Lists, _LargeListThreshold) ->
-    {error, ip_index_nif_not_loaded}.
+    erlang:nif_error(ip_index_nif_not_loaded).
 
 async_finish_build_index_nif(_Tid) ->
-    {error, ip_index_nif_not_loaded}.
+    erlang:nif_error(ip_index_nif_not_loaded).
