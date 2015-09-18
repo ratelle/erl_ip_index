@@ -1,0 +1,3 @@
+{build, "./rebar g-d co"}.
+{deps, "deps"}.
+{test_path, "test"}.
