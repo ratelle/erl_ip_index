@@ -125,7 +125,7 @@ build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 static void *
 async_build_index_thread(void *args)
 {
-    struct index_env *ie = (struct index_env*)args;
+    struct index_env *ie = static_cast<struct index_env*>(args);
     ERL_NIF_TERM result = internal_build_index(ie->env, ie->ip_lists, ie->large_list_threshold);
 
     enif_send(NULL, &(ie->pid), ie->env, enif_make_tuple2(ie->env, ie->ref, result));
@@ -156,7 +156,7 @@ async_start_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     /* 8 megs to be on the safe side */
     opts.suggested_stack_size = 0x2000;
 
-    if (enif_thread_create(thread_name, tid, async_build_index_thread, (void*)ie, &opts) == 0)
+    if (enif_thread_create(thread_name, tid, async_build_index_thread, static_cast<void*>(ie), &opts) == 0)
         retval = enif_make_tuple2(env, ref, enif_make_resource(env, tid));
     else
     {
@@ -177,7 +177,7 @@ async_finish_build_index_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
     if (!enif_get_resource(env, argv[0], ip_index_builder_type, &tid))
         return enif_make_badarg(env);
 
-    enif_thread_join(*(ErlNifTid*)tid, NULL);
+    enif_thread_join(*static_cast<ErlNifTid*>(tid), NULL);
 
     return atom_ok;
 }
@@ -201,7 +201,7 @@ lookup_ip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     index = static_cast<Ipv4Index*>(*wrapper);
 
-    std::vector<uint64_t> results = index->lookup(ip, (uint8_t)mask);
+    std::vector<Ipv4ListId> results = index->lookup(ip, static_cast<uint8_t>(mask));
 
     unsigned length = results.size();
 
