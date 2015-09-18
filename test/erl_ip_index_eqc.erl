@@ -61,13 +61,12 @@ prop_lookup_reports_only_ips_in_lists() ->
                         end)
             end).
 
-complete_class_A(N) ->
-    [{A,B,C,D} || A <- [N], B <- lists:seq(0,255), C <- lists:seq(0,255), D <- lists:seq(0,255)].
+complete_class_A(A) ->
+    << <<A,B,C,D,32>> || B <- lists:seq(0,255), C <- lists:seq(0,255), D <- lists:seq(0,255)>>.
 
 prop_class_A() ->
     application:start(erl_ip_index),
-    ?FORALL(Bin, oneof([ip_tuples_to_bin(complete_class_A(10)),
-                        <<10,0,0,0,8>>]),
+    ?FORALL(Bin, oneof([complete_class_A(10), <<10,0,0,0,8>>]),
             begin
                 Index = erl_ip_index:build_index([{0,1,Bin}], ?DEFAULT_THRESHOLD),
                 ?FORALL(Ip, {frequency([{30,10},{70,byte()}]), byte(), byte(), byte()},
