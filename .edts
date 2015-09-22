@@ -1,0 +1,2 @@
+:name "erl_ip_index"
+:lib-dirs '("deps" "deps/eqc/ebin" "test")
