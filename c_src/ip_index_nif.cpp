@@ -249,13 +249,17 @@ index_info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_list3(env, or_map_tuple, large_lists_tuple, large_list_threshold_tuple);
 }
 
+// Older Erlang releases lack the flag field.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 static ErlNifFunc nif_functions[] = {
-    {"build_index_nif", 2, build_index_nif, 0},
-    {"async_start_build_index_nif", 2, async_start_build_index_nif, 0},
-    {"async_finish_build_index_nif", 1, async_finish_build_index_nif, 0},
-    {"lookup_subnet_nif", 3, lookup_ip_nif, 0},
-    {"index_info", 1, index_info, 0}
+    {"build_index_nif", 2, build_index_nif},
+    {"async_start_build_index_nif", 2, async_start_build_index_nif},
+    {"async_finish_build_index_nif", 1, async_finish_build_index_nif},
+    {"lookup_subnet_nif", 3, lookup_ip_nif},
+    {"index_info", 1, index_info}
 };
+#pragma GCC diagnostic pop
 
 ERL_NIF_INIT(erl_ip_index, nif_functions, &on_load, NULL, NULL, NULL)
 
