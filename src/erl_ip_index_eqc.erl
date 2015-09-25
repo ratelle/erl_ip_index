@@ -8,6 +8,10 @@
 -define(M, erl_ip_index).
 -define(DEFAULT_THRESHOLD, 1000).
 
+-on_load(init/0).
+
+init() -> erl_ip_index:init().
+
 %% generators: random IP, random IP in set, random IP not in set, IP list with clustered ranges, set of IP lists
 
 byte() -> choose(0, 255).
