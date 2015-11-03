@@ -1,6 +1,9 @@
 REBAR=./rebar
 
-all: compile
+all: get-deps compile
+
+get-deps:
+	$(REBAR) u-d
 
 compile:
 	$(REBAR) compile
@@ -16,4 +19,13 @@ check_valgrind: $(INDEXED_EWAH_O) test/standalone.cpp
 	$(CXX) $(CXXFLAGS) -Ic_src $^ -o test/standalone
 	valgrind ./test/standalone 3000000 0 32
 
-.PHONY: all compile clean check_valgrind
+check: all eunit qc check_valgrind
+
+eunit:
+	$(REBAR) eunit
+
+qc:
+	$(REBAR) qc
+
+
+.PHONY: all compile get-deps clean check eunit qc check_valgrind

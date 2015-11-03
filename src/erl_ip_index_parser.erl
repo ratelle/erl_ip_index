@@ -54,6 +54,4 @@ convert_ip_mask(IdSpace, Id, {A, B, C, D, Mask}) ->
     {Offset, MaskedNumber, IdSpace, Id}.
 
 split_ip(Ip) when is_binary(Ip) ->
-    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]);
-split_ip(Ip) when is_list(Ip) ->
-    split_ip(list_to_binary(Ip)).
+    list_to_tuple([binary_to_integer(X) || X <- binary:split(Ip, <<".">>, [global])]).
