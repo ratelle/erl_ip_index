@@ -11,6 +11,8 @@
     index_info/1
 ]).
 
+-define(NOT_LOADED, not_loaded(?LINE)).
+
 -on_load(init/0).
 
 -spec init() -> ok.
@@ -61,7 +63,7 @@ parse_ip(Ip) when is_list(Ip) ->
     parse_ip(list_to_binary(Ip)).
 
 index_info(_Index) ->
-    {error, ip_index_nif_not_loaded}.
+    ?NOT_LOADED.
 
 lookup_subnet(Index, Ip, Mask) when is_integer(Mask), Mask >= 8, Mask =< 32 ->
     lookup_subnet_nif(Index, parse_ip(Ip), Mask).
@@ -70,13 +72,16 @@ lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
 build_index_nif(_IpLists, _LargeListThreshold) ->
-    {error, ip_index_nif_not_loaded}.
+    ?NOT_LOADED.
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->
-    {error, ip_index_nif_not_loaded}.
+    ?NOT_LOADED.
 
 async_start_build_index_nif(_Lists, _LargeListThreshold) ->
-    {error, ip_index_nif_not_loaded}.
+    ?NOT_LOADED.
 
 async_finish_build_index_nif(_Tid) ->
-    {error, ip_index_nif_not_loaded}.
+    ?NOT_LOADED.
+
+not_loaded(Line) ->
+    erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, Line}]}).
