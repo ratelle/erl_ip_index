@@ -1,0 +1,2 @@
+_ = niffy:load_nif(erl_ip_index, []).
+erl_ip_index:build_index_nif([{1, 1, Input}], 5).

@@ -27,5 +27,14 @@ eunit:
 qc:
 	$(REBAR) qc
 
+AFL_FUZZ = afl-fuzz
+AFL_CC = afl-gcc
+AFL_CXX = afl-g++
+FUZZ_SKELETON = fuzz_skeleton
 
-.PHONY: all compile get-deps clean check eunit qc check_valgrind
+fuzz:
+	CC=$(AFL_CC) CXX=$(AFL_CXX) $(REBAR) compile
+	$(AFL_FUZZ) $(AFL_FLAGS) -i fuzz/samples -o fuzz/findings -- \
+	  $(FUZZ_SKELETON) priv/ip_index_nif.so fuzz/build_index_nif.term
+
+.PHONY: all compile get-deps clean check eunit qc check_valgrind fuzz
