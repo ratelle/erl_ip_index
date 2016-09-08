@@ -33,6 +33,7 @@ AFL_CXX ?= afl-g++
 FUZZ_SKELETON ?= fuzz_skeleton
 
 fuzz:
+	$(REBAR) clean
 	CC=$(AFL_CC) CXX=$(AFL_CXX) $(REBAR) compile
 	$(AFL_FUZZ) $(AFL_FLAGS) -i fuzz/samples -o fuzz/findings -- \
 	  $(FUZZ_SKELETON) priv/ip_index_nif.so fuzz/build_index_nif.term
