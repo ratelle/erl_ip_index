@@ -27,10 +27,10 @@ eunit:
 qc:
 	$(REBAR) qc
 
-AFL_FUZZ = afl-fuzz
-AFL_CC = afl-gcc
-AFL_CXX = afl-g++
-FUZZ_SKELETON = fuzz_skeleton
+AFL_FUZZ ?= afl-fuzz
+AFL_CC ?= afl-gcc
+AFL_CXX ?= afl-g++
+FUZZ_SKELETON ?= fuzz_skeleton
 
 fuzz:
 	CC=$(AFL_CC) CXX=$(AFL_CXX) $(REBAR) compile
