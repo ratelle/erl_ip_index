@@ -1,0 +1,11 @@
+sudo: required
+language: erlang
+otp_release:
+  - 18.3
+  - 19
+script: make check
+cache:
+  directories:
+    - $HOME/.cache/rebar3
+notifications:
+  email: false
