@@ -62,16 +62,22 @@ prop_lookup_reports_only_ips_in_lists() ->
 complete_class_A(A) ->
     << <<A,B,C,D,32>> || B <- lists:seq(0,255), C <- lists:seq(0,255), D <- lists:seq(0,255)>>.
 
+test_all_class_A_present(Index) ->
+    ?FORALL(Ip, {frequency([{30,10},{70,byte()}]), byte(), byte(), byte()},
+            ?FORALL(Mask, frequency([{90,32}, {10,mask()}]),
+                    case {Ip, erl_ip_index:lookup_subnet(Index, Ip, Mask)} of
+                        {{10,_,_,_}, [{0,1}]} -> true;
+                        {_, []} -> true;
+                        _ -> false
+                    end)).
+
 prop_class_A() ->
     application:start(erl_ip_index),
-    ?FORALL(Bin, oneof([complete_class_A(10), <<10,0,0,0,8>>]),
-            begin
-                Index = erl_ip_index:build_index([{0,1,Bin}]),
-                ?FORALL(Ip, {frequency([{30,10},{70,byte()}]), byte(), byte(), byte()},
-                        ?FORALL(Mask, frequency([{90,32}, {10,mask()}]),
-                                case {Ip, erl_ip_index:lookup_subnet(Index, Ip, Mask)} of
-                                    {{10,_,_,_}, [{0,1}]} -> true;
-                                    {_, []} -> true;
-                                    _ -> false
-                                end))
-            end).
+    Complete = complete_class_A(10),
+    Index = erl_ip_index:build_index([{0,1,Complete}]),
+    test_all_class_A_present(Index).
+
+prop_class_A_mask() ->
+    application:start(erl_ip_index),
+    Index = erl_ip_index:build_index([{0,1,<<10,0,0,0,8>>}]),
+    test_all_class_A_present(Index).
