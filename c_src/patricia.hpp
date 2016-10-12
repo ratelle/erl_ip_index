@@ -9,7 +9,7 @@ class PatriciaKey {
 public:
     PatriciaKey(KeyType value, uint8_t offset) : value_(value), offset_(offset)
     {
-        if (offset == (sizeof(KeyType) << 3))
+        if (offset >= (sizeof(KeyType) << 3))
             value_ = 0;
         else
             value_ &= static_cast<KeyType>(0xffffffffffffffffll << offset_);
@@ -41,13 +41,13 @@ public:
     }
 
     bool applies_to(KeyType key) const {
-        if (offset_ == (sizeof(KeyType) << 3))
+        if (offset_ >= (sizeof(KeyType) << 3))
             return true;
         return (key & static_cast<KeyType>(0xffffffffffffffffll << offset_)) == value_;
     }
 
     bool applies_to(const PatriciaKey<KeyType>& patkey) const {
-        if (offset_ == (sizeof(KeyType) << 3))
+        if (offset_ >= (sizeof(KeyType) << 3))
             return true;
         return offset_ >= patkey.offset_ &&
             (patkey.value() & static_cast<KeyType>(0xffffffffffffffffll << offset_)) == value_;
@@ -65,11 +65,8 @@ struct PatriciaElem {
     KeyType key;
     ValueType value;
 
-    PatriciaElem (uint8_t offset_, KeyType key_, ValueType value_) {
-        offset = offset_;
-        key = key_;
-        value = value_;
-    }
+    PatriciaElem (uint8_t offset_, KeyType key_, ValueType value_) :
+        offset(offset_), key(key_), value(value_) {}
 
     bool operator< (const PatriciaElem& val) const {
         if (offset > val.offset) {
@@ -96,11 +93,7 @@ class PatriciaPair {
 
 public:
 
-    PatriciaPair(std::vector<PatriciaKey<KeyType>>& keys, ValueType value)
-    {
-        keys_ = keys;
-        value_ = value;
-    }
+    PatriciaPair(std::vector<PatriciaKey<KeyType>>& keys, ValueType value) : keys_(keys), value_(value) {}
 
     ValueType value() const {
         return value_;
