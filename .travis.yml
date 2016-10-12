@@ -10,3 +10,5 @@ cache:
     - $HOME/.cache/rebar3
 notifications:
   email: false
+  slack:
+    secure: b9j5a87PxbZ3mt77W5sWjJkctOAmSOIaXk4gDNgbuzbIlqpd+n/+y9qdhSaUX9KGZoX5+WYIlAm6+yaiRff87NKeKHM8BpvGx53nVjPtfLBNNZ5kHadiISTdfEdom21cPv//zCYntHnASb0mUYlK/4WfABZmW9Lr96rMlvde2zM=
