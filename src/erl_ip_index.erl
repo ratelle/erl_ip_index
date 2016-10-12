@@ -3,11 +3,10 @@
 
 -export([
     init/0,
-    build_index/2,
-    async_build_index/2,
+    build_index/1,
+    async_build_index/1,
     lookup_ip/2,
     lookup_subnet/3,
-    lookup_subnet_nif/3,
     index_info/1
 ]).
 
@@ -36,16 +35,16 @@ priv_dir() ->
         Dir -> Dir
     end.
 
--spec build_index(ip_lists(), pos_integer()) -> idx_resource().
-build_index(IpLists, LargeListThreshold) ->
-    case build_index_nif(IpLists, LargeListThreshold) of
+-spec build_index(ip_lists()) -> idx_resource().
+build_index(IpLists) ->
+    case build_index_nif(IpLists) of
         undefined -> error(badarg);
         Result -> Result
     end.
 
--spec async_build_index(ip_lists(), pos_integer()) -> idx_resource().
-async_build_index(IpLists, LargeListThreshold) ->
-    {Ref, Tid} = async_start_build_index_nif(IpLists, LargeListThreshold),
+-spec async_build_index(ip_lists()) -> idx_resource().
+async_build_index(IpLists) ->
+    {Ref, Tid} = async_start_build_index_nif(IpLists),
     receive
         {Ref, undefined} ->
             async_finish_build_index_nif(Tid),
@@ -77,16 +76,15 @@ lookup_ip(Index, Ip) ->
     lookup_subnet(Index, Ip, 32).
 
 -spec index_info(idx_resource()) -> any().
-index_info(_Index) ->
-    erlang:nif_error(ip_index_nif_not_loaded).
+index_info(_Index) -> [].
 
-build_index_nif(_IpLists, _LargeListThreshold) ->
+build_index_nif(_IpLists) ->
     erlang:nif_error(ip_index_nif_not_loaded).
 
 lookup_subnet_nif(_Index, _Ip, _Offset) ->
     erlang:nif_error(ip_index_nif_not_loaded).
 
-async_start_build_index_nif(_Lists, _LargeListThreshold) ->
+async_start_build_index_nif(_Lists) ->
     erlang:nif_error(ip_index_nif_not_loaded).
 
 async_finish_build_index_nif(_Tid) ->

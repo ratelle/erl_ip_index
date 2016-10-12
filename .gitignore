@@ -9,3 +9,7 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 *.so
+*.d
+.qc
+test/standalone
+fuzz/findings
