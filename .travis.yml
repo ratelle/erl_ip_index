@@ -2,10 +2,21 @@ sudo: required
 language: erlang
 otp_release:
   - 18.3
-  - 19
-script: make check
+  - 19.1
+install: true
+script: CC=gcc-5 make check
 cache:
   directories:
     - $HOME/.cache/rebar3
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-5
+dist: trusty
+group: edge
 notifications:
   email: false
+  slack:
+    secure: b9j5a87PxbZ3mt77W5sWjJkctOAmSOIaXk4gDNgbuzbIlqpd+n/+y9qdhSaUX9KGZoX5+WYIlAm6+yaiRff87NKeKHM8BpvGx53nVjPtfLBNNZ5kHadiISTdfEdom21cPv//zCYntHnASb0mUYlK/4WfABZmW9Lr96rMlvde2zM=
