@@ -7,7 +7,6 @@
     async_build_index/1,
     lookup_ip/2,
     lookup_subnet/3,
-    lookup_subnet_nif/3,
     index_info/1
 ]).
 
