@@ -4,10 +4,18 @@ otp_release:
   - 18.3
   - 19
 install: true
-script: make check
+script: CC=gcc-5 make check
 cache:
   directories:
     - $HOME/.cache/rebar3
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-5
+dist: trusty
+group: edge
 notifications:
   email: false
   slack:
