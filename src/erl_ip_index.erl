@@ -12,7 +12,7 @@
 -on_load(init/0).
 
 -type ip_lists() :: list({integer(), integer(), binary()}).
--type ip_address() :: binary() | string() | {0..255,0..255,0..255,0..255}.
+-type ip_address() :: binary() | string() | {0..255,0..255,0..255,0..255} | integer().
 -type mask() :: 8..32.
 -type idx_resource() :: binary().
 
