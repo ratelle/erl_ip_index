@@ -10,4 +10,4 @@ metadata:
 spec:
   owner: cg-dsp-bidding-systems
   type:  library
-  lifecycle: experimental
+  lifecycle: production
